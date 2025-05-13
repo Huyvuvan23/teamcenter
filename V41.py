@@ -64,7 +64,7 @@ class TeamcenterDownloader:
         self.io_frame.grid_columnconfigure(2, weight=1)
 
         # Store input_file_label_1 as instance variable
-        self.input_file_label_1 = tk.Label(self.io_frame, text="Input File:", bg="#f0f0f0", width=20, anchor="e")
+        self.input_file_label_1 = tk.Label(self.io_frame, text="Input File:", bg="#f0f0f0", width=15, anchor="e")
         self.input_file_label_1.grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.input_file_entry_1 = tk.Entry(self.io_frame, width=70)
         self.input_file_entry_1.grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="nsew")
@@ -72,14 +72,14 @@ class TeamcenterDownloader:
         self.input_file_button_1.grid(row=0, column=3, padx=5, pady=5, sticky="nsew")
 
         # Store input_file_label_2 as instance variable
-        self.input_file_label_2 = tk.Label(self.io_frame, text="Connector IF List File:", bg="#f0f0f0", width=20, anchor="e")
+        self.input_file_label_2 = tk.Label(self.io_frame, text="Connector IF File:", bg="#f0f0f0", width=15, anchor="e")
         self.input_file_label_2.grid(row=1, column=0, padx=5, pady=5, sticky="e")
         self.input_file_entry_2 = tk.Entry(self.io_frame, width=70)
         self.input_file_entry_2.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky="nsew")
         self.input_file_button_2 = tk.Button(self.io_frame, text="Browse", command=lambda: self.select_input_file(self.input_file_entry_2))
         self.input_file_button_2.grid(row=1, column=3, padx=5, pady=5, sticky="nsew")
 
-        output_folder_label = tk.Label(self.io_frame, text="Output Folder:", bg="#f0f0f0", width=20, anchor="e")
+        output_folder_label = tk.Label(self.io_frame, text="Output Folder:", bg="#f0f0f0", width=15, anchor="e")
         output_folder_label.grid(row=2, column=0, padx=5, pady=5, sticky="e")
         self.output_folder_entry = tk.Entry(self.io_frame, width=70)
         self.output_folder_entry.grid(row=2, column=1, columnspan=2, padx=5, pady=5, sticky="nsew")
@@ -117,11 +117,11 @@ class TeamcenterDownloader:
 
         # Visibility Selection
 
-        self.input_file_var = tk.IntVar(value=self.data.get("var", 0))
+        self.input_file_var = tk.IntVar(value=self.data.get("var", 1))
         map_file_radio = tk.Radiobutton(self.column_frame, text="Using MAP File", variable=self.input_file_var, value=0, command=self.update_visibility, bg="#f0f0f0")
         simple_file_radio = tk.Radiobutton(self.column_frame, text="Using Simple Input File", variable=self.input_file_var, value=1, command=self.update_visibility, bg="#f0f0f0")
-        map_file_radio.grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        simple_file_radio.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        map_file_radio.grid(row=2, column=0, padx=50, pady=5, sticky="w")
+        simple_file_radio.grid(row=1, column=0, padx=50, pady=5, sticky="w")
 
     def update_visibility(self):
         if self.input_file_var.get() == 1:
@@ -157,9 +157,9 @@ class TeamcenterDownloader:
         self.choose_file_type.pack(pady=5)
 
         # Create IntVar variables for each checkbox
-        self.data_note_var = tk.IntVar(value=1)
-        self.ref_drawing_var = tk.IntVar(value=1)
-        self.pdf_cad_var = tk.IntVar(value=1)
+        self.data_note_var = tk.IntVar(value=0)
+        self.ref_drawing_var = tk.IntVar(value=0)
+        self.pdf_cad_var = tk.IntVar(value=0)
 
         # Create checkboxes and pack them into the frame
         data_note_cb = tk.Checkbutton(self.choose_file_type, text="Data Note", variable=self.data_note_var, bg="#f0f0f0")
@@ -185,11 +185,11 @@ class TeamcenterDownloader:
         self.button_frame = tk.Frame(self.root, bg="#f0f0f0")
         self.button_frame.pack(pady=10)
 
-        self.download_button = tk.Button(self.button_frame, text="Download", command=self.download, bg="#0B3040", fg="white")
-        self.download_button.pack(side=tk.LEFT, padx=5)
+        self.download_button = tk.Button(self.button_frame, text="Download", command=self.download, bg="#0B3040", fg="white", width=15, font=("Arial", 10))
+        self.download_button.pack(side=tk.LEFT, padx=10)
 
-        self.stop_button = tk.Button(self.button_frame, text="Stop", command=self.stop_task, bg="#f44336", fg="white")
-        self.stop_button.pack(side=tk.LEFT, padx=5)
+        self.stop_button = tk.Button(self.button_frame, text="Stop", command=self.stop_task, bg="#f44336", fg="white", width=15, font=("Arial", 10))
+        self.stop_button.pack(side=tk.LEFT, padx=10)
 
     def save_data(self):
         data = {
@@ -479,6 +479,7 @@ class TeamcenterDownloader:
                 else:
                     return 0
             if self.stop_flag: 
+                self.done_label.config(text="Stopped!", fg="red")
                 return
             name_nx_cad = name_pdf_cad(r"C:\Temp\NX_Nav_.plmxml")
             filename = name_nx_cad + ".pdf"
@@ -489,6 +490,7 @@ class TeamcenterDownloader:
                 file_path = os.path.join(folder_path, new_filename)
                 counter += 1
             if self.stop_flag: 
+                self.done_label.config(text="Stopped!", fg="red")
                 return
             pyperclip.copy(file_path)
             self.window_nx.set_focus()
@@ -499,6 +501,7 @@ class TeamcenterDownloader:
             keyboard.send_keys('{TAB 4}')
             keyboard.send_keys('{ENTER}')
             if self.stop_flag: 
+                self.done_label.config(text="Stopped!", fg="red")
                 return
             self.export_window.wait('ready', timeout=999)
             # pane_window.print_control_identifiers()
@@ -510,6 +513,7 @@ class TeamcenterDownloader:
             self.export_window.child_window(control_type="ComboBox",found_index=1).wrapper_object().select("Black on White")
             self.export_window.child_window(title="OK", control_type="Button").click()
             if self.stop_flag: 
+                self.done_label.config(text="Stopped!", fg="red")
                 return
             self.window_nx.wait('ready', timeout=999)
             time.sleep(1)
