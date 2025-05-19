@@ -806,8 +806,10 @@ class TeamcenterDownloader:
         def download_type(type):
             i=0
             self.first_turn = True
+            self.progress_label.config(text=f"Progress download {type}: {i}/{len(data)} (0%)")
             for idx, (x, y, z) in enumerate(data):
                 print(f"--------------------------------------------\n {x} {y}")
+                
                 if self.stop_flag: break
                 self.download_status = None
                 if self.total_turn % 50 == 0 and self.total_turn >= 1: self.reset(teamcenter_window)
@@ -993,7 +995,7 @@ class TeamcenterDownloader:
             self.download_button.config(state=tk.NORMAL)
             messagebox.showerror("Error", "Please select file type to download.")
             return
-        
+        self.progress_label.config(text="Preparing...", fg="blue")
         self.done_label.config(text="Downloading...", fg="green")
         self.stop_flag = False
         
@@ -1006,6 +1008,8 @@ class TeamcenterDownloader:
     
     def stop_task(self):
         self.download_button.config(state="normal")
+        self.progress_label.config(text="Stopped", fg="red")
+        self.done_label.config(text="", fg="green")
         self.stop_flag = True
 
     def on_closing(self):
