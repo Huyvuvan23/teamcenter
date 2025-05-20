@@ -531,30 +531,47 @@ class TeamcenterDownloader:
         return folder_path
 
     def set_search_fields(self, search_window, item_id, revision, file_type):
-        match file_type:
-            case 'excel':
-                search_window.child_window(control_type="Edit", title="Item ID:").set_text(item_id)
-                search_window.child_window(control_type="Edit", title="Revision:").set_text(revision)
-            case 'zip':
-                search_window.child_window(control_type="Edit", title="Shape Number:").set_text(item_id)
-                search_window.child_window(control_type="Edit", title="Shape Change Number:").set_text(revision)
-            case 'nx':
-                shapenumber = search_window.child_window(control_type="Edit", title="ShapeNumber:")
-                shapename = search_window.child_window(control_type="Edit", title="ShapeName:")
-                btn_more = search_window.child_window(title="More...>>>", control_type="Button")
-
-                if item_id[-1] == "*":
-                    if not shapenumber.exists():
-                        btn_more.click()
-                        shapename.set_text("")
-                    shapenumber.set_text(item_id)
-                else:
-                    if not shapename.exists():
-                        btn_more.click()
-                        shapenumber.set_text("")
-                    shapename.set_text(item_id)
-
-                search_window.child_window(control_type="Edit", title="ShapeChangeNumber:").set_text(revision)
+        """
+        Set the search fields in the Teamcenter search window based on file_type.
+        Args:
+            search_window: pywinauto window object for the search tab.
+            item_id: The item ID or shape number to search for.
+            revision: The revision or shape change number.
+            file_type: One of 'excel', 'zip', or 'nx'.
+        """
+        if file_type == 'excel':
+            # For Data Note (Excel), set Item ID and Revision fields
+            search_window.child_window(control_type="Edit", title="Item ID:").set_text(item_id)
+            search_window.child_window(control_type="Edit", title="Revision:").set_text(revision)
+        elif file_type == 'zip':
+            # For Ref Drawing (ZIP), set Shape Number and Shape Change Number fields
+            search_window.child_window(control_type="Edit", title="Shape Number:").set_text(item_id)
+            search_window.child_window(control_type="Edit", title="Shape Change Number:").set_text(revision)
+        elif file_type == 'nx':
+            # For NX PDF, handle ShapeNumber and ShapeName fields
+            shapenumber = search_window.child_window(control_type="Edit", title="ShapeNumber:")
+            shapename = search_window.child_window(control_type="Edit", title="ShapeName:")
+            btn_more = search_window.child_window(title="More...>>>", control_type="Button")
+            i = 0
+            # If item_id ends with '*', use ShapeNumber, else use ShapeName
+            if item_id.endswith("*"):
+                # Ensure ShapeNumber field is visible
+                while not shapenumber.exists() and i < 10:
+                    btn_more.click()
+                    time.sleep(0.5)
+                    i += 1
+                    shapename.set_text("")
+                shapenumber.set_text(item_id)
+            else:
+                # Ensure ShapeName field is visible
+                while not shapename.exists() and i < 10:
+                    btn_more.click()
+                    time.sleep(0.5)
+                    i += 1
+                    shapenumber.set_text("")
+                shapename.set_text(item_id)
+            # Set ShapeChangeNumber field
+            search_window.child_window(control_type="Edit", title="ShapeChangeNumber:").set_text(revision)
 
     def download_file(self, teamcenter_app, teamcenter_window, outputfolder, item_id, revision, folder_name, file_type):
         
