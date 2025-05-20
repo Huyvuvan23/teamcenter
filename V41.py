@@ -88,7 +88,7 @@ class TeamcenterDownloader:
         self.input_file_label_1.grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.input_file_entry_1 = tk.Entry(self.io_frame, width=70)
         self.input_file_entry_1.grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="nsew")
-        self.input_file_button_1 = tk.Button(self.io_frame, text="Browse", command=lambda: self.select_input_file(self.input_file_entry_1))
+        self.input_file_button_1 = tk.Button(self.io_frame, text="Browse", command=lambda: self.select_input_file(self.input_file_entry_1, "MAP" if self.input_file_label_1.cget("text").lower().startswith("map") else ""))
         self.input_file_button_1.grid(row=0, column=3, padx=5, pady=5, sticky="nsew")
 
         # Store input_file_label_2 as instance variable
@@ -96,7 +96,7 @@ class TeamcenterDownloader:
         self.input_file_label_2.grid(row=1, column=0, padx=5, pady=5, sticky="e")
         self.input_file_entry_2 = tk.Entry(self.io_frame, width=70)
         self.input_file_entry_2.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky="nsew")
-        self.input_file_button_2 = tk.Button(self.io_frame, text="Browse", command=lambda: self.select_input_file(self.input_file_entry_2))
+        self.input_file_button_2 = tk.Button(self.io_frame, text="Browse", command=lambda: self.select_input_file(self.input_file_entry_2, "Connector IF"))
         self.input_file_button_2.grid(row=1, column=3, padx=5, pady=5, sticky="nsew")
 
         output_folder_label = tk.Label(self.io_frame, text="Output Folder:", bg="#f0f0f0", width=15, anchor="e")
@@ -232,19 +232,19 @@ class TeamcenterDownloader:
         self.colrevision_entry.insert(0, self.data.get("colrevision", ""))
         self.colnamefolder_entry.insert(0, self.data.get("colnamefolder", ""))
 
-    def select_input_file(self, entry_widget):
+    def select_input_file(self, entry_widget, text):
         app = QApplication(sys.argv)
-        file_paths, _ = QFileDialog.getOpenFileNames(None, "Select Files", "C:/", "Excel Files (*.xls*);;All Files (*)")
+        file_path, _ = QFileDialog.getOpenFileName(None, f"Select File {text}", None, "Excel Files (*.xls*);;All Files (*)")
         app.quit()
 
-        if file_paths:
-            file_paths = [path.replace("/", "\\") for path in file_paths]
+        if file_path:
+            file_path = file_path.replace("/", "\\")
             entry_widget.delete(0, tk.END)
-            entry_widget.insert(0, "; ".join(file_paths))
+            entry_widget.insert(0, file_path)
 
     def select_output_folder(self, entry_widget):
         app = QApplication(sys.argv)
-        folder_path = QFileDialog.getExistingDirectory(None, "Select Folder", "C:/")
+        folder_path = QFileDialog.getExistingDirectory(None, "Select Folder")
         app.quit()
 
         if folder_path:
@@ -252,13 +252,13 @@ class TeamcenterDownloader:
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, folder_path)
 
-    def cho_hien_ra(self, teamcenter_window):
+    def waiting_progress(self, teamcenter_window):
         time_start = time.time()
         while True:
             if self.stop_flag: return
             if time.time() - time_start >= 5*60:
                 self.done_label.config(text="Error, Please try again", fg="red")
-                print("Progress load qua 5 phut")
+                print("Out of waiting time")
                 sys.exit()
             if teamcenter_window.child_window(control_type="Text", title="No operations to display at this time.").exists():
                 return False
@@ -267,18 +267,18 @@ class TeamcenterDownloader:
         if self.stop_flag: return 
         teamcenter_window.set_focus()
         keyboard.send_keys("%WOM")
-        self.cho_hien_ra(teamcenter_window)
+        self.waiting_progress(teamcenter_window)
         keyboard.send_keys("%WRY")
-        self.cho_hien_ra(teamcenter_window)
+        self.waiting_progress(teamcenter_window)
         try:
             teamcenter_window.child_window(title="Close All", control_type="MenuItem").select()
         except:
             pass
 
-    def chuanbitai(self, teamcenter_window, type):
+    def preparing(self, teamcenter_window, type):
         if self.stop_flag: return
         teamcenter_window.child_window(control_type="SplitButton", title="Select a Search").invoke()
-        self.cho_hien_ra(teamcenter_window)
+        self.waiting_progress(teamcenter_window)
 
         if type == 'excel':
             keyboard.send_keys("I{ENTER}")
@@ -287,29 +287,31 @@ class TeamcenterDownloader:
         if type == 'nx':    
             keyboard.send_keys("SSS{ENTER}")
 
-        self.cho_hien_ra(teamcenter_window)
+        self.waiting_progress(teamcenter_window)
         teamcenter_window.child_window(control_type="Button", title="Clear all search fields").invoke()
 
-    def doc_file(self, file_link, coliteam, colrevision, colnamefolder):
-        Alldata = []
-        
-        wb = load_workbook(filename=file_link)
-        sheet = wb.active
-        row = 1
-        maxrow = 20000
-    
-        for i in range(row, maxrow + 1):
-            item = sheet[f'{coliteam}{i}'].value
-            revision = sheet[f'{colrevision}{i}'].value
-            folder_name = sheet[f'{colnamefolder}{i}'].value
-            
-            if (item, revision, folder_name) not in Alldata and item is not None and revision is not None:
-                if isinstance(item, str) and isinstance(revision, str) and item.strip() != "" and revision.strip() != "" and len(item) > 2 and len(revision) > 2:
-                    Alldata.append((item, revision, folder_name))
-        return Alldata
+    def get_data_from_simple_file(self, file_link, coliteam, colrevision, colnamefolder):
+        data = []
+        try:
+            wb = load_workbook(filename=file_link)
+            sheet = wb.active
+            maxrow = sheet.max_row
+
+            for i in range(2, maxrow + 1):  # Start from row 2, assuming row 1 is header
+                item = sheet[f'{coliteam}{i}'].value
+                revision = sheet[f'{colrevision}{i}'].value
+                folder_name = sheet[f'{colnamefolder}{i}'].value
+
+                # Only add if all fields are non-empty strings
+                if all(isinstance(val, str) and val.strip() for val in [item, revision, folder_name]):
+                    tup = (item.strip(), revision.strip(), folder_name.strip())
+                    if tup not in data:
+                        data.append(tup)
+        except Exception as e:
+            print(f"Error reading simple file: {e}")
+        return data
 
     def get_data_from_map_file(self, link_MAP_file, link_connector_infor_file):
-    
         def set_up_ws(ws):
             try:
                 ws.api.Rows.Hidden = False
@@ -321,6 +323,23 @@ class TeamcenterDownloader:
         def get_last_row(ws, col):
             return ws.range(col + str(ws.cells.last_cell.row)).end('up').row
 
+        def find_cell(ws, text_to_find):
+            unit_name_cell_ws_if = None
+            try:
+                found = ws.api.Cells.Find(
+                    What = text_to_find,
+                    LookIn=-4163,  # xlValues
+                    LookAt=1,      # xlWhole
+                    SearchOrder=1, # xlByRows
+                    SearchDirection=1, # xlNext
+                    MatchCase=False
+                )
+                if found is not None:
+                    unit_name_cell_ws_if = ws.range((found.Row, found.Column))
+            except Exception:
+                pass
+            return unit_name_cell_ws_if
+        
         app = xw.App(visible=False)
         wb_if = None
         wb_map = None
@@ -329,31 +348,43 @@ class TeamcenterDownloader:
             wb_if = app.books.open(link_connector_infor_file)
             ws_if = wb_if.sheets("コネクタIFの作成管理")
             set_up_ws(ws_if)
-            last_row_if = get_last_row(ws_if, "C")
-            unitnames_if = sorted(set(ws_if.range(f"C4:C{last_row_if}").value))
+
+            unit_name_cell_ws_if = find_cell(ws_if, "unit name")
             
+            # Get the last row and all unit names from the "unit name" column in the IF sheet
+            if unit_name_cell_ws_if is None:
+                raise ValueError("'unit name' cell not found in コネクタIFの作成管理 sheet.")
+            unit_name_cell_col_if = get_column_letter(unit_name_cell_ws_if.column)
+            unit_name_cell_row_if = unit_name_cell_ws_if.row
+            last_row_if = get_last_row(ws_if, unit_name_cell_col_if)
+            unitnames_if = ws_if.range(f"{unit_name_cell_col_if}{unit_name_cell_row_if + 3}:{unit_name_cell_col_if}{last_row_if}").value
+            unitnames_if = sorted(set(x for x in unitnames_if if x is not None))
+
             wb_map = app.books.open(link_MAP_file)
             ws_map = wb_map.sheets("MAP")
             ws_dwg = wb_map.sheets["DWG"]
             set_up_ws(ws_map)
             set_up_ws(ws_dwg)
             
-            last_row_map = get_last_row(ws_map, "D")
-            unitname_map = ws_map.range(f"D6:D{last_row_map}").value
-            part_number_map = ws_map.range(f"L6:L{last_row_map}").value
-            last_row_dwg = get_last_row(ws_dwg, "A")
-            
-            # Find the header row with "No" in sheet DWG
-            no_row = None
-            for i in range(1, last_row_dwg + 1):
-                if ws_dwg.range(f"A{i}").value == "No":
-                    no_row = i
-                    break
-            if no_row is None:
-                raise ValueError("Header row with 'No' not found in DWG sheet.")
+            unit_name_cell_map = find_cell(ws_map, "unit name")
+            part_number_cell_map = find_cell(ws_map, "Part#(10)")
+
+            # Use the column letter for "unit name" dynamically
+            unit_name_cell_col_map = get_column_letter(unit_name_cell_map.column)
+            unit_name_cell_row_map = unit_name_cell_map.row
+            last_row_map = get_last_row(ws_map, unit_name_cell_col_map)
+            unitname_map = ws_map.range(f"{unit_name_cell_col_map}{unit_name_cell_row_map + 1}:{unit_name_cell_col_map}{last_row_map}").value
+
+            part_number_cell_col_map = get_column_letter(part_number_cell_map.column)
+            part_number_map = ws_map.range(f"{part_number_cell_col_map}{unit_name_cell_row_map + 1}:{part_number_cell_col_map}{last_row_map}").value
+
+            no_cell_dwg = find_cell(ws_dwg, "no")
+            no_cell_col_dwg = get_column_letter(no_cell_dwg.column)
+            no_cell_row_dwg = no_cell_dwg.row
+            last_row_dwg = get_last_row(ws_dwg, no_cell_col_dwg)
             
             # Get the columns by checking the header row
-            headers = ws_dwg.range(f"A{no_row}:XFD{no_row}").value
+            headers = ws_dwg.range(f"A{no_cell_row_dwg}:XFD{no_cell_row_dwg}").value
             try:
                 part_number_column = headers.index("PART #") + 1
                 shape_no_column = headers.index("Drawing/Shape No") + 1
@@ -361,7 +392,7 @@ class TeamcenterDownloader:
             except ValueError as e:
                 raise ValueError("One or more necessary column headers not found.") from e
             
-            data_start = no_row + 1
+            data_start = no_cell_row_dwg + 1
             list_part_number_dwg = ws_dwg.range(ws_dwg.cells(data_start, part_number_column),
                                                 ws_dwg.cells(last_row_dwg, part_number_column)).value
             list_shape_no_dwg = ws_dwg.range(ws_dwg.cells(data_start, shape_no_column),
@@ -410,7 +441,7 @@ class TeamcenterDownloader:
                 wb_map.close()
             app.quit()
 
-    def get_latest_excelandzip_file(self):
+    def get_latest_excel_zip_file(self):
         folder_path = rf'C:\Temp'
         folders = [f for f in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, f))]
         if not folders:
@@ -428,8 +459,8 @@ class TeamcenterDownloader:
         
         return latest_file
 
-    def copy_latest_excelandzip_file_to_download(self, new_folder_moi, tenmoi):
-        latest_file = self.get_latest_excelandzip_file()
+    def copy_latest_excel_zip_file(self, new_folder_moi, tenmoi):
+        latest_file = self.get_latest_excel_zip_file()
         if latest_file:
             destination_folder = new_folder_moi
             destination_path = os.path.join(destination_folder, os.path.basename(latest_file))
@@ -463,9 +494,9 @@ class TeamcenterDownloader:
                 if process_create_time > threshold_time:
                     os.kill(proc.info['pid'], signal.SIGTERM)
 
-    def read_window_hienra(self, teamcenter_app, teamcenter_window):
+    def confirm_window_openned(self, teamcenter_app, teamcenter_window):
         star_time = time.time()
-        Vovan=teamcenter_window.child_window(class_name="SunAwtDialog")
+        confirm_window = teamcenter_window.child_window(class_name="SunAwtDialog")
         while True:
             if self.stop_flag: return
             windows = teamcenter_app.windows()
@@ -476,13 +507,13 @@ class TeamcenterDownloader:
                         time.sleep(1)
                         keyboard.send_keys("{ENTER}")
                     else:
-                        if Vovan.exists():
-                            Vovan.child_window(title="Close", control_type="Button").invoke()
+                        if confirm_window . exists():
+                            confirm_window . child_window(title="Close", control_type="Button").invoke()
                             return False
                 except:
                     pass
             if time.time() - star_time >= 300:
-                print("Read window hien ra lau qua")
+                print("Out of waiting time")
                 sys.exit()
             
             else:
@@ -538,7 +569,7 @@ class TeamcenterDownloader:
         search_window = teamcenter_window.child_window(title="Search", control_type="Tab")
         self.set_search_fields(search_window, item_id_moi, revision_moi, file_type)
         keyboard.send_keys("{ENTER}")
-        self.cho_hien_ra(teamcenter_window)
+        self.waiting_progress(teamcenter_window)
 
         kiem_tra_item_window = teamcenter_window.child_window(title="Search Results", control_type="Tab")
         
@@ -558,7 +589,7 @@ class TeamcenterDownloader:
             if status.exists():
                 self.set_search_fields(search_window, item_id + "*", revision_moi, file_type)
                 keyboard.send_keys("{ENTER}")
-                self.cho_hien_ra(teamcenter_window)
+                self.waiting_progress(teamcenter_window)
                 if status.exists():
                     print("No Shape found")
                     self.download_status = 3
@@ -574,7 +605,7 @@ class TeamcenterDownloader:
                 self.download_status = 0
                 return False
 
-            self.cho_hien_ra(teamcenter_window)
+            self.waiting_progress(teamcenter_window)
             pane_window.child_window(control_type="Button", title="", found_index=4).click()
 
             for index in range(3, 11):
@@ -587,11 +618,11 @@ class TeamcenterDownloader:
                         self.download_status = 0
                         return
                     
-                    if self.read_window_hienra(teamcenter_app, teamcenter_window):
+                    if self.confirm_window_openned(teamcenter_app, teamcenter_window):
                         time.sleep(1)
                         for each_folder in folder_name.split(","):
                             folder_path = self.create_folder(outputfolder, each_folder)
-                            self.copy_latest_excelandzip_file_to_download(folder_path, revision_moi)
+                            self.copy_latest_excel_zip_file(folder_path, revision_moi)
 
                         if file_type == 'excel':
                             self.kill_new_excel_processes()
@@ -706,19 +737,19 @@ class TeamcenterDownloader:
             try:
                 pane_window.child_window(control_type="TreeItem", found_index=1).wrapper_object().select()
                 pane_window.child_window(control_type="Button", title="", found_index=4).click()
-                self.cho_hien_ra(teamcenter_window)
+                self.waiting_progress(teamcenter_window)
                 if self.stop_flag: 
                     self.done_label.config(text="Stopped!", fg="red")
                     return
                 pane_window.child_window(control_type="TreeItem", found_index=2).wrapper_object().select()
                 pane_window.child_window(control_type="Button", title="", found_index=4).click()
-                self.cho_hien_ra(teamcenter_window)
+                self.waiting_progress(teamcenter_window)
                 if self.stop_flag: 
                     self.done_label.config(text="Stopped!", fg="red")
                     return
                 pane_window.child_window(control_type="TreeItem", found_index=3).wrapper_object().select()
                 pane_window.child_window(control_type="Button", title="", found_index=4).click()
-                self.cho_hien_ra(teamcenter_window)
+                self.waiting_progress(teamcenter_window)
                 if self.stop_flag: 
                     self.done_label.config(text="Stopped!", fg="red")
                     return
@@ -759,7 +790,7 @@ class TeamcenterDownloader:
                         if self.stop_flag: 
                             self.done_label.config(text="Stopped!", fg="red")
                             return      
-                        if self.read_window_hienra(teamcenter_app, teamcenter_window):
+                        if self.confirm_window_openned(teamcenter_app, teamcenter_window):
                             if self.app_nx == None:
                                 self.app_nx = Application(backend="uia").connect(title_re=".*NX.*", timeout=900)
                                 self.window_nx = self.app_nx.window(title_re=".*NX.*")
@@ -784,7 +815,7 @@ class TeamcenterDownloader:
         if file_type == 'nx':
             find_and_open_nx()
 
-        self.cho_hien_ra(teamcenter_window)
+        self.waiting_progress(teamcenter_window)
 
     def main(self, teamcenter_app, teamcenter_window, input_file_1, input_file_2, outputfolder, search_type, coliteam, colrevision, colnamefolder):
         self.total_open_NX = 0
@@ -809,11 +840,20 @@ class TeamcenterDownloader:
             self.first_turn = True
             self.progress_label.config(text=f"Progress download {type}: {i}/{len(data)} (0%)")
             for idx, (x, y, z) in enumerate(data):
+                if self.stop_flag: break
                 print(f"--------------------------------------------\n {x} {y}")
                 
-                if self.stop_flag: break
                 self.download_status = None
                 if self.total_turn % 50 == 0 and self.total_turn >= 1: self.reset(teamcenter_window)
+
+                i += 1
+                self.total_turn += 1
+                progress_percentage = (i) / len(data) * 100
+                self.progress_label.config(text=f"Progress download {type}: {i}/{len(data)} ({progress_percentage:.1f}%)")
+
+                if x == "NONE" or y == "NONE":
+                    print("Skip")
+                    continue
 
                 if type == "Ref Drawing" : self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'zip')
                 if type == "Data Note" : self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'excel')
@@ -821,13 +861,6 @@ class TeamcenterDownloader:
                 
                 col = col_mapping.get(type)
                 if col: write_to_cell(os.path.join(outputfolder, f"{self.name_file_log}.xlsx"), idx + 2, col, status_mapping.get(self.download_status, "Unknown"))
-
-                i += 1
-                self.total_turn += 1
-                progress_percentage = (i) / len(data) * 100
-                self.progress_label.config(text=f"Progress download {type}: {i}/{len(data)} ({progress_percentage:.1f}%)")
-                self.root.update_idletasks()
-                self.progress_label.update()
 
         def shorten_list(import_list):
             # Shorten list_temp by merging tuples with identical Shape No and Shape Revision
@@ -898,7 +931,7 @@ class TeamcenterDownloader:
 
         self.reset(teamcenter_window)
         if self.input_file_var.get() == 1:
-            data = self.doc_file(input_file_1, coliteam, colrevision, colnamefolder)
+            data = self.get_data_from_simple_file(input_file_1, coliteam, colrevision, colnamefolder)
         else:
             data = self.get_data_from_map_file(input_file_1, input_file_2)
             write_into_excel(data, outputfolder, self.name_file_log)
@@ -914,7 +947,7 @@ class TeamcenterDownloader:
 
         for op in search_type:
             label = operations[op]
-            self.chuanbitai(teamcenter_window,op)
+            self.preparing(teamcenter_window,op)
             download_type(label)
 
             if self.stop_flag:
@@ -982,7 +1015,17 @@ class TeamcenterDownloader:
             self.download_button.config(state=tk.NORMAL)
             messagebox.showerror("Error", "Please enter alphabetic characters for the columns.")
             return
-
+        # Check if input files exist
+        if input_var:
+            if not os.path.isfile(input_file_1):
+                self.download_button.config(state=tk.NORMAL)
+                messagebox.showerror("Error", "Input file does not exist.")
+                return
+        else:
+            if not os.path.isfile(input_file_1) or not os.path.isfile(input_file_2):
+                self.download_button.config(state=tk.NORMAL)
+                messagebox.showerror("Error", "One or both MAP/Connector IF files do not exist.")
+                return
         # Build operation types based on checkboxes
         op_types = []
         if self.data_note_var.get() == 1:
