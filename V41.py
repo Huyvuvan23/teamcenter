@@ -561,6 +561,7 @@ class TeamcenterDownloader:
                     time.sleep(0.5)
                     i += 1
                     shapename.set_text("")
+                if not shapenumber.exists() : self.preparing(search_window.parent(), "nx")
                 shapenumber.set_text(item_id)
             else:
                 # Ensure ShapeName field is visible
@@ -569,6 +570,7 @@ class TeamcenterDownloader:
                     time.sleep(0.5)
                     i += 1
                     shapenumber.set_text("")
+                if not shapename.exists() : self.preparing(search_window.parent(), "nx")
                 shapename.set_text(item_id)
             # Set ShapeChangeNumber field
             search_window.child_window(control_type="Edit", title="ShapeChangeNumber:").set_text(revision)
