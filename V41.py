@@ -791,6 +791,7 @@ class TeamcenterDownloader:
         self.total_turn = 0
         self.first_turn = False
         self.download_status = None  # 0: download error, 1: download success, 2: not found, 3: check again
+        self.name_file_log = "download_status"
         col_mapping = {
             "Ref Drawing": "E",
             "Data Note": "D",
@@ -819,7 +820,7 @@ class TeamcenterDownloader:
                 if type == "PDF CAD" : self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'nx')
                 
                 col = col_mapping.get(type)
-                if col: write_to_cell(os.path.join(outputfolder, "log.xlsx"), idx + 2, col, status_mapping.get(self.download_status, "Unknown"))
+                if col: write_to_cell(os.path.join(outputfolder, f"{self.name_file_log}.xlsx"), idx + 2, col, status_mapping.get(self.download_status, "Unknown"))
 
                 i += 1
                 self.total_turn += 1
@@ -900,10 +901,10 @@ class TeamcenterDownloader:
             data = self.doc_file(input_file_1, coliteam, colrevision, colnamefolder)
         else:
             data = self.get_data_from_map_file(input_file_1, input_file_2)
-            write_into_excel(data, outputfolder, "download_status")
+            write_into_excel(data, outputfolder, self.name_file_log)
         
         data = shorten_list(data)
-        write_into_excel(data, outputfolder, "download_status")
+        write_into_excel(data, outputfolder, self.name_file_log)
 
         operations = {
             'excel': "Data Note",
