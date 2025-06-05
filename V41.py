@@ -8,7 +8,8 @@ from openpyxl import load_workbook
 import xlwings as xw
 import openpyxl
 from openpyxl.utils import get_column_letter
-from pywinauto import keyboard
+from pywinauto import keyboard as kb
+import keyboard
 import signal
 import shutil
 import win32api, win32con
@@ -20,6 +21,8 @@ from PyQt5.QtWidgets import QApplication, QFileDialog
 import psutil
 from datetime import datetime, timedelta
 import json
+from openpyxl import Workbook
+import ctypes
 import xml.etree.ElementTree as ET
 
 # Redirect stdout to both terminal and file
@@ -59,7 +62,7 @@ class TeamcenterDownloader:
         self.root.eval('tk::PlaceWindow . center')
         
         # Create GUI elements
-        self.create_warning_label()
+        # self.create_warning_label()
         self.create_io_frame()
         self.settings()
         self.choose_file_type_frame()
@@ -266,9 +269,9 @@ class TeamcenterDownloader:
     def reset(self, teamcenter_window):
         if self.stop_flag: return 
         teamcenter_window.set_focus()
-        keyboard.send_keys("%WOM")
+        kb.send_keys("%WOM")
         self.waiting_progress(teamcenter_window)
-        keyboard.send_keys("%WRY")
+        kb.send_keys("%WRY")
         self.waiting_progress(teamcenter_window)
         try:
             teamcenter_window.child_window(title="Close All", control_type="MenuItem").select()
@@ -281,34 +284,43 @@ class TeamcenterDownloader:
         self.waiting_progress(teamcenter_window)
 
         if type == 'excel':
-            keyboard.send_keys("I{ENTER}")
+            kb.send_keys("I{ENTER}")
         if type == 'zip':
-            keyboard.send_keys("R{ENTER}")
+            kb.send_keys("R{ENTER}")
         if type == 'nx':    
-            keyboard.send_keys("SSS{ENTER}")
+            kb.send_keys("SSS{ENTER}")
 
         self.waiting_progress(teamcenter_window)
         teamcenter_window.child_window(control_type="Button", title="Clear all search fields").invoke()
 
-    def get_data_from_simple_file(self, file_link, coliteam, colrevision, colnamefolder):
+    def get_data_from_simple_file(self, file_link, colnamefolder, coliteam, colrevision):
         data = []
         try:
             wb = load_workbook(filename=file_link)
             sheet = wb.active
             maxrow = sheet.max_row
-
+                
             for i in range(2, maxrow + 1):  # Start from row 2, assuming row 1 is header
                 item = sheet[f'{coliteam}{i}'].value
                 revision = sheet[f'{colrevision}{i}'].value
                 folder_name = sheet[f'{colnamefolder}{i}'].value
-
+                header_values = [cell.value for cell in next(sheet.iter_rows(min_row=1, max_row=1))]
+                if header_values == ["Unit", "Shape No", "Shape Revision", "Data Note", "Rev Drawing", "NX PDF"]:
+                    col_idx = openpyxl.utils.column_index_from_string(colrevision)
+                    stt_datanote = sheet.cell(row=i, column=col_idx + 1).value
+                    stt_rev = sheet.cell(row=i, column=col_idx + 2).value
+                    stt_pdf = sheet.cell(row=i, column=col_idx + 3).value
+                else:
+                    stt_datanote = ''
+                    stt_rev = ''
+                    stt_pdf = ''
                 # Only add if all fields are non-empty strings
                 if all(isinstance(val, str) and val.strip() for val in [item, revision, folder_name]):
-                    tup = (item.strip(), revision.strip(), folder_name.strip())
+                    tup = (folder_name.strip(), item.strip(), revision.strip(), stt_datanote, stt_rev, stt_pdf)
                     if tup not in data:
                         data.append(tup)
         except Exception as e:
-            print(f"Error reading simple file: {e}")
+            print(f"Error reading input file: {e}")
         return data
 
     def get_data_from_map_file(self, link_MAP_file, link_connector_infor_file):
@@ -429,9 +441,9 @@ class TeamcenterDownloader:
                         is_ok = True
                         shape_parts = item.split(',')
                         if len(shape_parts) == 2:
-                            all_data.append((shape_parts[0], shape_parts[1], unitnames_if[idx]))
+                            all_data.append((unitnames_if[idx], shape_parts[0], shape_parts[1], '', '', ''))
                 if not is_ok:
-                    all_data.append(("NONE", "NONE", unitnames_if[idx]))
+                    all_data.append((unitnames_if[idx], "NONE", "NONE", '', '', ''))
             
             return all_data
         finally:
@@ -505,7 +517,7 @@ class TeamcenterDownloader:
                     if window != teamcenter_window:
                         window.set_focus()
                         time.sleep(1)
-                        keyboard.send_keys("{ENTER}")
+                        kb.send_keys("{ENTER}")
                     else:
                         if confirm_window . exists():
                             confirm_window . child_window(title="Close", control_type="Button").invoke()
@@ -575,7 +587,7 @@ class TeamcenterDownloader:
             # Set ShapeChangeNumber field
             search_window.child_window(control_type="Edit", title="ShapeChangeNumber:").set_text(revision)
 
-    def download_file(self, teamcenter_app, teamcenter_window, outputfolder, item_id, revision, folder_name, file_type):
+    def download_file(self, teamcenter_app, teamcenter_window, outputfolder, folder_name, item_id, revision, file_type):
         
         if file_type == 'excel':
             item_id_moi = item_id + "-note"
@@ -587,7 +599,7 @@ class TeamcenterDownloader:
         
         search_window = teamcenter_window.child_window(title="Search", control_type="Tab")
         self.set_search_fields(search_window, item_id_moi, revision_moi, file_type)
-        keyboard.send_keys("{ENTER}")
+        kb.send_keys("{ENTER}")
         self.waiting_progress(teamcenter_window)
 
         kiem_tra_item_window = teamcenter_window.child_window(title="Search Results", control_type="Tab")
@@ -607,7 +619,7 @@ class TeamcenterDownloader:
             status = kiem_tra_item_window.child_window(control_type="Pane", title="Shape  - No objects found")
             if status.exists():
                 self.set_search_fields(search_window, item_id + "*", revision_moi, file_type)
-                keyboard.send_keys("{ENTER}")
+                kb.send_keys("{ENTER}")
                 self.waiting_progress(teamcenter_window)
                 if status.exists():
                     print("No Shape found")
@@ -699,24 +711,48 @@ class TeamcenterDownloader:
                     pyperclip.copy(file_path)
                     self.window_nx.set_focus()
                     time.sleep(1)
-                    keyboard.send_keys('%f')
-                    keyboard.send_keys('{TAB 15}')
-                    keyboard.send_keys('{ENTER}')
-                    keyboard.send_keys('{TAB 4}')
-                    keyboard.send_keys('{ENTER}')
+                    kb.send_keys('%f')
+                    for _ in range(15):
+                        kb.send_keys('{TAB}')
+                        time.sleep(0.02)
+                    kb.send_keys('{ENTER}')
+                    time.sleep(1)
+                    keyboard.send('d')
+                    
                     if self.stop_flag: 
                         self.done_label.config(text="Stopped!", fg="red")
                         return
                     self.export_window.wait('ready', timeout=5)
                     if self.first_turn:
                         self.export_window.child_window(control_type="ComboBox",found_index=0).wrapper_object().select("File Browser")
-                        keyboard.send_keys('{TAB}')
-                    keyboard.send_keys('^v')
+                        kb.send_keys('{TAB}')
+                    kb.send_keys('^v')
                     # export_window.child_window(control_type="Edit", found_index=0).set_edit_text(file_path)
+                    # Hold Shift, press Tab 4 times, press Down 10 times, then release Shift
+                    kb.send_keys('{VK_SHIFT down}')  # Hold Shift down
+                    for _ in range(3):
+                        kb.send_keys('{TAB}')
+                        time.sleep(0.02)
+                    kb.send_keys('{VK_SHIFT up}')
+                    for _ in range(10):
+                        kb.send_keys('{VK_UP}')
+                        time.sleep(0.02)
+                    kb.send_keys('{VK_DOWN}')
+                    kb.send_keys('{VK_SHIFT down}')
+                    for _ in range(10):
+                        kb.send_keys('{VK_DOWN}')
+                        time.sleep(0.02)
+                    kb.send_keys('{VK_SHIFT up}')  # Release Shift
+
                     if self.first_turn:
                         self.export_window.child_window(control_type="ComboBox",found_index=1).wrapper_object().select("Black on White")
 
                     self.export_window.child_window(title="OK", control_type="Button").click()
+                    if self.export_window.exists():
+                        kb.send_keys('{ENTER}')
+                        kb.send_keys('{VK_ESCAPE}')
+                        return False
+                        
                     self.window_nx.wait('ready', timeout=999)
                     if self.stop_flag: 
                         self.done_label.config(text="Stopped!", fg="red")
@@ -731,17 +767,20 @@ class TeamcenterDownloader:
                     return False
 
             self.window_nx.wait('ready', timeout=999)
+
             time.sleep(1)
             if self.total_open_NX % 5 == 0:
-                keyboard.send_keys('%f')
-                keyboard.send_keys('{TAB 5}')
+                kb.send_keys('%f')
+                for _ in range(5):
+                    kb.send_keys('{TAB}')
+                    time.sleep(0.02)
                 time.sleep(0.5)
-                keyboard.send_keys('{ENTER}')
-                keyboard.send_keys('{TAB 1}')
+                kb.send_keys('{ENTER}')
+                kb.send_keys('{TAB}')
                 time.sleep(0.5)
-                keyboard.send_keys('{ENTER}')
+                kb.send_keys('{ENTER}')
                 time.sleep(1)
-                keyboard.send_keys('N')
+                kb.send_keys('N')
             return True
 
         def find_and_open_nx():
@@ -754,24 +793,18 @@ class TeamcenterDownloader:
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
 
             try:
-                pane_window.child_window(control_type="TreeItem", found_index=1).wrapper_object().select()
-                pane_window.child_window(control_type="Button", title="", found_index=4).click()
-                self.waiting_progress(teamcenter_window)
-                if self.stop_flag: 
-                    self.done_label.config(text="Stopped!", fg="red")
-                    return
-                pane_window.child_window(control_type="TreeItem", found_index=2).wrapper_object().select()
-                pane_window.child_window(control_type="Button", title="", found_index=4).click()
-                self.waiting_progress(teamcenter_window)
-                if self.stop_flag: 
-                    self.done_label.config(text="Stopped!", fg="red")
-                    return
-                pane_window.child_window(control_type="TreeItem", found_index=3).wrapper_object().select()
-                pane_window.child_window(control_type="Button", title="", found_index=4).click()
-                self.waiting_progress(teamcenter_window)
-                if self.stop_flag: 
-                    self.done_label.config(text="Stopped!", fg="red")
-                    return
+                # Select and click up to 3 TreeItems in sequence
+                for idx in range(1, 4):
+                    try:
+                        pane_window.child_window(control_type="TreeItem", found_index=idx).wrapper_object().select()
+                        pane_window.child_window(control_type="Button", title="", found_index=4).click()
+                        self.waiting_progress(teamcenter_window)
+                        if self.stop_flag:
+                            self.done_label.config(text="Stopped!", fg="red")
+                            return
+                    except Exception as e:
+                        print(f"Error processing TreeItem {idx}: {e}")
+                        break
                 # Find all occurrences of "CAD_NX.png" on screen with error handling
                 found_images = []
                 num = 1
@@ -804,7 +837,7 @@ class TeamcenterDownloader:
                         time.sleep(1)
                         click(coord[0], coord[1])
                         time.sleep(0.1)  # pause between clicks
-                        keyboard.send_keys('{ENTER}')
+                        kb.send_keys('{ENTER}')
                         self.total_open_NX += 1
                         if self.stop_flag: 
                             self.done_label.config(text="Stopped!", fg="red")
@@ -816,11 +849,17 @@ class TeamcenterDownloader:
                                 self.export_window = self.window_nx.child_window(title="Export PDF", control_type="Pane")
                             self.window_nx.wait('ready', timeout=999)
                             self.window_nx.set_focus()
+                            if not self.window_nx.is_maximized():
+                                self.window_nx.maximize()
+                            kb.send_keys('^+d')
+                            self.window_nx.wait('ready', timeout=999)
                             if self.stop_flag: 
                                 self.done_label.config(text="Stopped!", fg="red")
                                 return
                             export_status = export_pdf()
-                            if self.download_status == 0: continue
+                            if self.download_status == 0: 
+                                print("Export Error")    
+                                continue
                             if export_status: self.download_status = 1
                             else: self.download_status = 0
 
@@ -858,9 +897,9 @@ class TeamcenterDownloader:
             i=0
             self.first_turn = True
             self.progress_label.config(text=f"Progress download {type}: {i}/{len(data)} (0%)")
-            for idx, (x, y, z) in enumerate(data):
+            for idx, (x, y, z, a, b, c) in enumerate(data):
                 if self.stop_flag: break
-                print(f"--------------------------------------------\n {x} {y}")
+                print(f"--------------------------------------------\n {y} {z}")
                 
                 self.download_status = None
                 if self.total_turn % 50 == 0 and self.total_turn >= 1: self.reset(teamcenter_window)
@@ -870,22 +909,25 @@ class TeamcenterDownloader:
                 progress_percentage = (i) / len(data) * 100
                 self.progress_label.config(text=f"Progress download {type}: {i}/{len(data)} ({progress_percentage:.1f}%)")
 
-                if x == "NONE" or y == "NONE":
-                    print("Skip")
+                if y == "NONE" or not z[-1].isdigit():
+                    print("Skip None")
                     continue
 
-                if type == "Ref Drawing" : self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'zip')
-                if type == "Data Note" : self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'excel')
-                if type == "PDF CAD" : self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'nx')
-                
+                if type == "Data Note" and (a == None or a == "Download Error"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'excel')
+                elif type == "Ref Drawing" and (b == None or b == "Download Error"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'zip')
+                elif type == "PDF CAD" and (c == None or c == "Download Error"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'nx')
+                else: 
+                    print(f"Skip Download {type}")
+                    continue
+
                 col = col_mapping.get(type)
                 if col: write_to_cell(os.path.join(outputfolder, f"{self.name_file_log}.xlsx"), idx + 2, col, status_mapping.get(self.download_status, "Unknown"))
 
         def shorten_list(import_list):
             # Shorten list_temp by merging tuples with identical Shape No and Shape Revision
             merged_data = {}
-            for shape_no, shape_rev, unit in import_list:
-                key = (shape_no, shape_rev)
+            for unit, shape_no, shape_rev, stt_datanote, stt_rev, stt_pdf in import_list:
+                key = (shape_no, shape_rev, stt_datanote, stt_rev, stt_pdf)
                 if key in merged_data:
                     merged_data[key].append(unit)
                 else:
@@ -893,47 +935,30 @@ class TeamcenterDownloader:
 
             # Build a new list_temp with merged unit names for matching shape_no and shape_rev
             new_list = []
-            for (shape_no, shape_rev), units in merged_data.items():
+            for key, units in merged_data.items():
+                shape_no, shape_rev, stt_datanote, stt_rev, stt_pdf = key
                 merged_units = ",".join(sorted(set(units)))
-                new_list.append((shape_no, shape_rev, merged_units))
+                new_list.append((merged_units, shape_no, shape_rev, stt_datanote, stt_rev, stt_pdf))
             return new_list
         
         def write_into_excel(data_list, output_folder, save_name="output"):
-
             save_path = os.path.join(output_folder, f"{save_name}.xlsx")
-            app_output = xw.App(visible=False)
-            
             if os.path.exists(save_path):
-                # Open existing workbook and add a new sheet with a unique name.
-                wb_output = app_output.books.open(save_path)
-                base_sheet_name = save_name
-                new_sheet_name = base_sheet_name
-                counter = 1
-                existing_sheet_names = [sheet.name for sheet in wb_output.sheets]
-                while new_sheet_name in existing_sheet_names:
-                    counter += 1
-                    new_sheet_name = f"{base_sheet_name}_{counter}"
-                ws = wb_output.sheets.add(after=wb_output.sheets[-1])
-                ws.name = new_sheet_name
-            else:
-                # Create a new workbook and use the default sheet.
-                wb_output = app_output.books.add()
-                ws = wb_output.sheets[0]
-                ws.name = save_name
+                os.remove(save_path)
 
-            ws.clear()  # Clear any existing content
+            wb = Workbook()
+            ws = wb.active
+            ws.title = save_name
 
             # Write header row
-            ws.range("A1").value = ["Unit", "Shape No", "Shape Revision", "Data Note", "Rev Drawing", "NX PDF"]
+            headers = ["Unit", "Shape No", "Shape Revision", "Data Note", "Rev Drawing", "NX PDF"]
+            ws.append(headers)
 
             # Write each tuple from data_list into subsequent rows.
-            for idx, (shape_no, shape_rev, unit) in enumerate(data_list, start=2):
-                ws.range(f"A{idx}").value = unit
-                ws.range(f"B{idx}").value = shape_no
-                ws.range(f"C{idx}").value = shape_rev
+            for row_data in data_list:
+                ws.append(row_data)
 
-            wb_output.save(save_path)
-            app_output.quit()
+            wb.save(save_path)
 
         def write_to_cell(file_path, row, col, value):
             try:
@@ -950,11 +975,10 @@ class TeamcenterDownloader:
 
         self.reset(teamcenter_window)
         if self.input_file_var.get() == 1:
-            data = self.get_data_from_simple_file(input_file_1, coliteam, colrevision, colnamefolder)
+            data = self.get_data_from_simple_file(input_file_1, colnamefolder, coliteam, colrevision)
         else:
             data = self.get_data_from_map_file(input_file_1, input_file_2)
-            write_into_excel(data, outputfolder, self.name_file_log)
-        
+            
         data = shorten_list(data)
         write_into_excel(data, outputfolder, self.name_file_log)
 
@@ -1083,6 +1107,15 @@ class TeamcenterDownloader:
         self.root.mainloop()    
 
 if __name__ == "__main__":
-    sys.stdout = Logger("logger.txt")
+    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if not os.path.exists("log"):
+        os.makedirs("log")
+    sys.stdout = Logger(os.path.join("log", f"log_{now}.txt"))
+    sys.stderr = sys.stdout  # Redirect stderr to log as well
+    # Hide the console window if running as a script
+    try:
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+    except Exception:
+        pass
     app = TeamcenterDownloader()
     app.run()
