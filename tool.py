@@ -62,7 +62,7 @@ class TeamcenterDownloader:
         self.root.eval('tk::PlaceWindow . center')
         
         # Create GUI elements
-        # self.create_warning_label()
+        self.create_warning_label()
         self.create_io_frame()
         self.settings()
         self.choose_file_type_frame()
@@ -75,7 +75,7 @@ class TeamcenterDownloader:
 
     def create_warning_label(self):
         self.warning_label = tk.Label(self.root, 
-            text="Do not operate while the tool is running.\nLog in to Teamcenter before running.",
+            text="Do not operate while the tool is running.\nLog in to Teamcenter before running.\nSwitch your keyboard to English mode.",
             fg="red", bg="#f0f0f0", wraplength=500, justify="center")
         self.warning_label.pack(pady=10)
 
@@ -139,7 +139,6 @@ class TeamcenterDownloader:
         self.colrevision_entry.grid(row=2, column=2, padx=5, pady=5, sticky="w")
 
         # Visibility Selection
-
         self.input_file_var = tk.IntVar(value=self.data.get("var", 1))
         map_file_radio = tk.Radiobutton(self.column_frame, text="Using MAP File", variable=self.input_file_var, value=0, command=self.update_visibility, bg="#f0f0f0")
         simple_file_radio = tk.Radiobutton(self.column_frame, text="Using Simple Input File", variable=self.input_file_var, value=1, command=self.update_visibility, bg="#f0f0f0")
@@ -311,9 +310,9 @@ class TeamcenterDownloader:
                     stt_rev = sheet.cell(row=i, column=col_idx + 2).value
                     stt_pdf = sheet.cell(row=i, column=col_idx + 3).value
                 else:
-                    stt_datanote = ''
-                    stt_rev = ''
-                    stt_pdf = ''
+                    stt_datanote = None
+                    stt_rev = None
+                    stt_pdf = None
                 # Only add if all fields are non-empty strings
                 if all(isinstance(val, str) and val.strip() for val in [item, revision, folder_name]):
                     tup = (folder_name.strip(), item.strip(), revision.strip(), stt_datanote, stt_rev, stt_pdf)
@@ -441,9 +440,9 @@ class TeamcenterDownloader:
                         is_ok = True
                         shape_parts = item.split(',')
                         if len(shape_parts) == 2:
-                            all_data.append((unitnames_if[idx], shape_parts[0], shape_parts[1], '', '', ''))
+                            all_data.append((unitnames_if[idx], shape_parts[0], shape_parts[1], None, None, None))
                 if not is_ok:
-                    all_data.append((unitnames_if[idx], "NONE", "NONE", '', '', ''))
+                    all_data.append((unitnames_if[idx], "NONE", "NONE", None, None, None))
             
             return all_data
         finally:
@@ -543,14 +542,7 @@ class TeamcenterDownloader:
         return folder_path
 
     def set_search_fields(self, search_window, item_id, revision, file_type):
-        """
-        Set the search fields in the Teamcenter search window based on file_type.
-        Args:
-            search_window: pywinauto window object for the search tab.
-            item_id: The item ID or shape number to search for.
-            revision: The revision or shape change number.
-            file_type: One of 'excel', 'zip', or 'nx'.
-        """
+        
         if file_type == 'excel':
             # For Data Note (Excel), set Item ID and Revision fields
             search_window.child_window(control_type="Edit", title="Item ID:").set_text(item_id)
@@ -626,18 +618,18 @@ class TeamcenterDownloader:
                     self.download_status = 3
                     return False
 
-        pane_window = kiem_tra_item_window.child_window(control_type="Pane", title="Search Results")
+        search_result_window = kiem_tra_item_window.child_window(control_type="Pane", title="Search Results")
 
         def excel_and_zip():
             try:
-                pane_window.child_window(control_type="TreeItem", found_index=1).select()
+                search_result_window.child_window(control_type="TreeItem", found_index=1).select()
             except:
                 print("Cannot click TreeItem 1")
                 self.download_status = 0
                 return False
 
             self.waiting_progress(teamcenter_window)
-            pane_window.child_window(control_type="Button", title="", found_index=4).click()
+            search_result_window.child_window(control_type="Button", title="", found_index=4).click()
 
             for index in range(3, 11):
                 file_ez = kiem_tra_item_window.child_window(control_type="TreeItem", found_index=index)
@@ -650,7 +642,7 @@ class TeamcenterDownloader:
                         return
                     
                     if self.confirm_window_openned(teamcenter_app, teamcenter_window):
-                        time.sleep(1)
+                        time.sleep(0.5)
                         for each_folder in folder_name.split(","):
                             folder_path = self.create_folder(outputfolder, each_folder)
                             self.copy_latest_excel_zip_file(folder_path, revision_moi)
@@ -659,7 +651,7 @@ class TeamcenterDownloader:
                             self.kill_new_excel_processes()
                         else:
                             self.kill_new_7zip_processes()
-                        time.sleep(1)
+                        time.sleep(0.5)
                         self.download_status = 1
                 else:   
                     print(f"No file found at position {index}")
@@ -681,10 +673,18 @@ class TeamcenterDownloader:
                     return name
                 else:
                     return 0
-                
-            if self.stop_flag: 
-                self.done_label.config(text="Stopped!", fg="red")
-                return
+            def close_all_tab_nx():
+                self.window_nx.set_focus()
+                kb.send_keys('%f')
+                keyboard.send('c')
+                keyboard.send('l')
+                time.sleep(1)
+                keyboard.send('n')
+
+            if self.first_turn:
+                self.window_nx.maximize()
+            kb.send_keys('^+d')
+            win32api.SetCursorPos((0, 0))
             name_nx_cad = name_pdf_cad(r"C:\Temp\NX_Nav_.plmxml")
             filename = f"{name_nx_cad},{revision_moi}.pdf"
 
@@ -699,112 +699,85 @@ class TeamcenterDownloader:
                         filename = f"({counter}) {name_nx_cad},{revision_moi}.pdf"
                         file_path = os.path.join(folder_path, filename)
                         counter += 1
-                    if self.stop_flag: 
-                        self.done_label.config(text="Stopped!", fg="red")
-                        return
-                    
+        
                     if idx != 0:
-                        shutil.copy2(os.path.join(self.create_folder(outputfolder, list_name_folder[idx-1]), filename), file_path)
-                        print(f"File '{os.path.basename(filename)}' is saved to '{each_folder}'.")
-                        continue
+                        try:
+                            shutil.copy2(os.path.join(self.create_folder(outputfolder, list_name_folder[idx-1]), filename), file_path)
+                            print(f"File '{os.path.basename(filename)}' is saved to '{each_folder}'.")
+                            continue
+                        except:
+                            print(f"Error when sanving file '{os.path.basename(filename)}' to '{each_folder}'.")
+                            return False
 
                     pyperclip.copy(file_path)
-                    self.window_nx.set_focus()
-                    time.sleep(1)
                     kb.send_keys('%f')
-                    for _ in range(15):
-                        kb.send_keys('{TAB}')
-                        time.sleep(0.02)
-                    kb.send_keys('{ENTER}')
-                    time.sleep(1)
+                    keyboard.send('e')
+                    keyboard.send('e')
+                    keyboard.send('Enter')
                     keyboard.send('d')
                     
                     if self.stop_flag: 
                         self.done_label.config(text="Stopped!", fg="red")
                         return
+                    
                     self.export_window.wait('ready', timeout=5)
                     if self.first_turn:
                         self.export_window.child_window(control_type="ComboBox",found_index=0).wrapper_object().select("File Browser")
                         kb.send_keys('{TAB}')
+
                     kb.send_keys('^v')
-                    # export_window.child_window(control_type="Edit", found_index=0).set_edit_text(file_path)
-                    # Hold Shift, press Tab 4 times, press Down 10 times, then release Shift
-                    kb.send_keys('{VK_SHIFT down}')  # Hold Shift down
-                    for _ in range(3):
-                        kb.send_keys('{TAB}')
-                        time.sleep(0.02)
-                    kb.send_keys('{VK_SHIFT up}')
-                    for _ in range(10):
-                        kb.send_keys('{VK_UP}')
-                        time.sleep(0.02)
-                    kb.send_keys('{VK_DOWN}')
-                    kb.send_keys('{VK_SHIFT down}')
-                    for _ in range(10):
-                        kb.send_keys('{VK_DOWN}')
-                        time.sleep(0.02)
-                    kb.send_keys('{VK_SHIFT up}')  # Release Shift
+                    self.export_window.child_window(title="Current Display", control_type="ListItem").wrapper_object().invoke()
+                    kb.send_keys('{DOWN}')
+                    kb.send_keys('+{DOWN 10}')  # Shift+Down 10 times
 
                     if self.first_turn:
                         self.export_window.child_window(control_type="ComboBox",found_index=1).wrapper_object().select("Black on White")
 
                     self.export_window.child_window(title="OK", control_type="Button").click()
-                    if self.export_window.exists():
-                        kb.send_keys('{ENTER}')
-                        kb.send_keys('{VK_ESCAPE}')
-                        return False
                         
                     self.window_nx.wait('ready', timeout=999)
+                    self.first_turn = False
+                    if os.path.exists(file_path):
+                        print(f"File '{os.path.basename(filename)}' is saved to '{each_folder}'.")
+                    else:
+                        print(f"Error when sanving file '{os.path.basename(filename)}' to '{each_folder}'.")
+                        return False
+                    
                     if self.stop_flag: 
                         self.done_label.config(text="Stopped!", fg="red")
                         return
-                    self.first_turn = False
-                    print(f"File '{os.path.basename(filename)}' is saved to '{each_folder}'.")
                     
                 except Exception as e:
                     print(f"Have error with NX: {e}")
-                    self.app_nx.kill()
-                    self.app_nx = None
+                    close_all_tab_nx()
                     return False
-
-            self.window_nx.wait('ready', timeout=999)
-
-            time.sleep(1)
+                
             if self.total_open_NX % 5 == 0:
-                kb.send_keys('%f')
-                for _ in range(5):
-                    kb.send_keys('{TAB}')
-                    time.sleep(0.02)
-                time.sleep(0.5)
-                kb.send_keys('{ENTER}')
-                kb.send_keys('{TAB}')
-                time.sleep(0.5)
-                kb.send_keys('{ENTER}')
-                time.sleep(1)
-                kb.send_keys('N')
+                close_all_tab_nx()
             return True
 
         def find_and_open_nx():
-            teamcenter_window.set_focus()
-
             def click(x, y):
                 """Simulates a single mouse click at the specified (x, y) coordinates."""
                 win32api.SetCursorPos((x, y))
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
 
+            teamcenter_window.set_focus()
             try:
                 # Select and click up to 3 TreeItems in sequence
                 for idx in range(1, 4):
                     try:
-                        pane_window.child_window(control_type="TreeItem", found_index=idx).wrapper_object().select()
-                        pane_window.child_window(control_type="Button", title="", found_index=4).click()
+                        search_result_window.child_window(control_type="TreeItem", found_index=idx).wrapper_object().select()
+                        search_result_window.child_window(control_type="Button", title="", found_index=4).click()
                         self.waiting_progress(teamcenter_window)
-                        if self.stop_flag:
-                            self.done_label.config(text="Stopped!", fg="red")
-                            return
+                        
                     except Exception as e:
                         print(f"Error processing TreeItem {idx}: {e}")
                         break
+                if self.stop_flag:
+                    self.done_label.config(text="Stopped!", fg="red")
+                    return
                 # Find all occurrences of "CAD_NX.png" on screen with error handling
                 found_images = []
                 num = 1
@@ -812,12 +785,13 @@ class TeamcenterDownloader:
                     image_file = f"images/CAD_NX_{num}.png"
                     if not os.path.exists(image_file):
                         break
+                    # Try to find all occurrences of the image on screen
                     try:
-                        images_found = list(pag.locateAllOnScreen(image_file, confidence=0.9))
-                        found_images.extend(images_found)
-                    except Exception:
-                        num += 1
-                        continue
+                        images_found = pag.locateAllOnScreen(image_file, confidence=0.9)
+                        if images_found:
+                            found_images.extend(list(images_found))
+                    except Exception as e:
+                        pass
                     num += 1
 
                 coordinates = []
@@ -846,22 +820,22 @@ class TeamcenterDownloader:
                             if self.app_nx == None:
                                 self.app_nx = Application(backend="uia").connect(title_re=".*NX.*", timeout=900)
                                 self.window_nx = self.app_nx.window(title_re=".*NX.*")
+                                
                                 self.export_window = self.window_nx.child_window(title="Export PDF", control_type="Pane")
+
                             self.window_nx.wait('ready', timeout=999)
                             self.window_nx.set_focus()
-                            if not self.window_nx.is_maximized():
-                                self.window_nx.maximize()
-                            kb.send_keys('^+d')
-                            self.window_nx.wait('ready', timeout=999)
+                            
                             if self.stop_flag: 
                                 self.done_label.config(text="Stopped!", fg="red")
                                 return
                             export_status = export_pdf()
+                            
+                            if export_status: self.download_status = 1
+                            else: self.download_status = 0
                             if self.download_status == 0: 
                                 print("Export Error")    
                                 continue
-                            if export_status: self.download_status = 1
-                            else: self.download_status = 0
 
             except Exception as e:
                 print("Cannot click TreeItem:", e)
@@ -913,9 +887,9 @@ class TeamcenterDownloader:
                     print("Skip None")
                     continue
 
-                if type == "Data Note" and (a == None or a == "Download Error"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'excel')
-                elif type == "Ref Drawing" and (b == None or b == "Download Error"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'zip')
-                elif type == "PDF CAD" and (c == None or c == "Download Error"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'nx')
+                if type == "Data Note" and (a == None or a == "Download Error" or a == "Unknown"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'excel')
+                elif type == "Ref Drawing" and (b == None or b == "Download Error" or b == "Unknown"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'zip')
+                elif type == "PDF CAD" and (c == None or c == "Download Error" or c == "Unknown"): self.download_file(teamcenter_app, teamcenter_window, outputfolder,x, y, z, 'nx')
                 else: 
                     print(f"Skip Download {type}")
                     continue
@@ -972,8 +946,16 @@ class TeamcenterDownloader:
                 print(f"Error writing to cell in file {file_path} at row {row} and column {col}: {e}")
                 return
         #_________________________________________________________
+        # Close Excel window named "download_status.xlsx" if it is open
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.info['name'] == 'EXCEL.EXE':
+                    cmdline = ' '.join(proc.info.get('cmdline', []))
+                    if f'{self.name_file_log}.xlsx' in cmdline:
+                        os.kill(proc.info['pid'], signal.SIGTERM)
+            except Exception:
+                pass
 
-        self.reset(teamcenter_window)
         if self.input_file_var.get() == 1:
             data = self.get_data_from_simple_file(input_file_1, colnamefolder, coliteam, colrevision)
         else:
@@ -988,6 +970,7 @@ class TeamcenterDownloader:
             'nx': "PDF CAD"
         }
 
+        self.reset(teamcenter_window)
         for op in search_type:
             label = operations[op]
             self.preparing(teamcenter_window,op)
