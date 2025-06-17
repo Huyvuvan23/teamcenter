@@ -47,7 +47,7 @@ class StyleManager:
     def get_frame_style(theme):
         return f"""
             QFrame {{
-                background-color: {'#424242' if theme == 'dark' else '#ffffff'};
+                background-color: {'#424242' if theme == 'dark' else "#ffffffff"};
                 border: 1px solid {'#555555' if theme == 'dark' else '#cccccc'};
                 border-radius: 8px;
             }}
@@ -496,17 +496,17 @@ class Ui_MainWindow:
         """Tạo các ô nhập liệu cho settings"""
         entry_style = StyleManager.get_entry_style("light")
         
-        self.folder_column_entry = QtWidgets.QPlainTextEdit(self.settings_frame)
+        self.folder_column_entry = QtWidgets.QTextEdit(self.settings_frame)
         self.folder_column_entry.setGeometry(QtCore.QRect(70, 40, 55, 35))
         self.folder_column_entry.setStyleSheet(entry_style)
         self.folder_column_entry.setObjectName("folder_column_entry")
         
-        self.item_column_entry = QtWidgets.QPlainTextEdit(self.settings_frame)
+        self.item_column_entry = QtWidgets.QTextEdit(self.settings_frame)
         self.item_column_entry.setGeometry(QtCore.QRect(320, 40, 55, 35))
         self.item_column_entry.setStyleSheet(entry_style)
         self.item_column_entry.setObjectName("item_column_entry")
         
-        self.rev_entry = QtWidgets.QPlainTextEdit(self.settings_frame)
+        self.rev_entry = QtWidgets.QTextEdit(self.settings_frame)
         self.rev_entry.setGeometry(QtCore.QRect(570, 40, 55, 35))
         self.rev_entry.setStyleSheet(entry_style)
         self.rev_entry.setObjectName("rev_entry")
