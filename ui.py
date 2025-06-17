@@ -9,7 +9,12 @@ class GearButton(QtWidgets.QPushButton):
         self.setCursor(QtCore.Qt.PointingHandCursor)
         
         # Load the gear icon
-        icon = QtGui.QIcon("cogwheel.png")
+        try:
+            icon = QtGui.QIcon("cogwheel.png")
+            if icon.isNull():
+                icon = QtGui.QIcon.fromTheme("preferences-system")
+        except Exception:
+            icon = QtGui.QIcon.fromTheme("preferences-system")  
         self.setIcon(icon)
         self.setIconSize(QtCore.QSize(size-4, size-4))  # Slightly smaller than button size
         
@@ -25,12 +30,11 @@ class GearButton(QtWidgets.QPushButton):
             }
         """)
 
-# Insert after import statements
-class AnimatedToggle(QtWidgets.QCheckBox):
+class BaseToggle(QtWidgets.QCheckBox):
     def __init__(
         self, parent=None, width=60,
         bg_color="#b0b0b0", circle_color="#fff",
-        active_color="#2a82da", label_on="Dark", label_off="Light"
+        active_color="#2a82da", label_on="On", label_off="Off"
     ):
         super().__init__(parent)
         self.setFixedSize(width, 28)
@@ -55,8 +59,7 @@ class AnimatedToggle(QtWidgets.QCheckBox):
         self._external_label.move(self.x(), self.y() + self.height() + 2)
         self._external_label.show()
 
-        # Animation
-        # Center the bar vertically and the circle inside the bar
+        # Animation setup
         self._bar_margin = 8
         self._bar_height = 12
         self._bar_y = (self.height() - self._bar_height) // 2
@@ -66,6 +69,7 @@ class AnimatedToggle(QtWidgets.QCheckBox):
         self._min_pos = self._bar_margin
         self._max_pos = self._bar_margin + self._bar_width - self._circle_diameter
         self._circle_pos = self._min_pos if not self.isChecked() else self._max_pos
+        
         self.animation = QtCore.QPropertyAnimation(self, b"circlePos")
         self.animation.setDuration(200)
 
@@ -73,23 +77,24 @@ class AnimatedToggle(QtWidgets.QCheckBox):
         self._hover = False
         self._pressed = False
 
+        # Connect signals
         self.toggled.connect(self.start_animation)
         self.toggled.connect(self.update_external_label)
         self.start_animation(self.isChecked())
         self.update_external_label(self.isChecked())
 
     def moveEvent(self, event):
-        if self._external_label:
+        if hasattr(self, '_external_label') and self._external_label:
             self._external_label.move(self.x(), self.y() + self.height() + 2)
         super().moveEvent(event)
 
     def resizeEvent(self, event):
-        if self._external_label:
+        if hasattr(self, '_external_label') and self._external_label:
             self._external_label.resize(self.width(), 20)
         super().resizeEvent(event)
 
     def update_external_label(self, checked):
-        if self._external_label:
+        if hasattr(self, '_external_label') and self._external_label:
             self._external_label.setText(self._label_on if checked else self._label_off)
             if checked:
                 self._external_label.setStyleSheet("color: #fff; background: transparent;")
@@ -138,12 +143,14 @@ class AnimatedToggle(QtWidgets.QCheckBox):
         if self.isChecked():
             glow_color = QtGui.QColor(self._active_color)
             glow_color.setAlpha(80)
-            glow_rect = QtCore.QRectF(self._circle_pos - 2, self._circle_y - 2, self._circle_diameter + 4, self._circle_diameter + 4)
+            glow_rect = QtCore.QRectF(self._circle_pos - 2, self._circle_y - 2, 
+                                    self._circle_diameter + 4, self._circle_diameter + 4)
             painter.setBrush(glow_color)
             painter.drawEllipse(glow_rect)
 
         # Circle
-        circle_rect = QtCore.QRectF(self._circle_pos, self._circle_y, self._circle_diameter, self._circle_diameter)
+        circle_rect = QtCore.QRectF(self._circle_pos, self._circle_y, 
+                                  self._circle_diameter, self._circle_diameter)
         grad = QtGui.QRadialGradient(circle_rect.center(), self._circle_diameter / 2)
         grad.setColorAt(0, QtGui.QColor("#fff"))
         grad.setColorAt(1, QtGui.QColor("#e0e0e0"))
@@ -155,6 +162,11 @@ class AnimatedToggle(QtWidgets.QCheckBox):
         self._hover = True
         self.update()
         super().enterEvent(event)
+    
+    def closeEvent(self, event):
+        if hasattr(self, '_external_label') and self._external_label:
+            self._external_label.deleteLater()
+        super().closeEvent(event)
 
     def leaveEvent(self, event):
         self._hover = False
@@ -171,10 +183,23 @@ class AnimatedToggle(QtWidgets.QCheckBox):
         self.update()
         super().mouseReleaseEvent(event)
 
+class AnimatedToggle(BaseToggle):
+    def __init__(self, parent=None, width=70, **kwargs):
+        kwargs.setdefault('label_on', 'Dark')
+        kwargs.setdefault('label_off', 'Light')
+        super().__init__(parent, width=width, **kwargs)
+
+
+class FileModeToggle(BaseToggle):
+    def __init__(self, parent=None, width=70, **kwargs):
+        kwargs.setdefault('label_on', 'MAP File')
+        kwargs.setdefault('label_off', 'Simple File')
+        super().__init__(parent, width=width, **kwargs)
+
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.setFixedSize(740, 760)
+        MainWindow.resize(740, 670)
         # Central widget
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
@@ -184,6 +209,11 @@ class Ui_MainWindow(object):
         self.theme_toggle.setGeometry(QtCore.QRect(625, 10, 70, 28))
         self.theme_toggle.setObjectName("theme_toggle")
         
+        # Thêm toggle cho chế độ file
+        self.file_mode_toggle = FileModeToggle(self.centralwidget, width=70)
+        self.file_mode_toggle.setGeometry(QtCore.QRect(625, 70, 70, 28))
+        self.file_mode_toggle.setObjectName("file_mode_toggle")
+
         # Title label
         self.label = QtWidgets.QLabel(self.centralwidget)
         self.label.setGeometry(QtCore.QRect(120, 10, 500, 120))
@@ -197,7 +227,7 @@ class Ui_MainWindow(object):
         
         # Input/Output frame
         self.inout_frame = QtWidgets.QFrame(self.centralwidget)
-        self.inout_frame.setGeometry(QtCore.QRect(20, 150, 700, 180))
+        self.inout_frame.setGeometry(QtCore.QRect(20, 150, 700, 175))
         self.inout_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.inout_frame.setFrameShadow(QtWidgets.QFrame.Raised)
         self.inout_frame.setObjectName("inout_frame")
@@ -235,7 +265,7 @@ class Ui_MainWindow(object):
         label_font.setPointSize(10)
         
         self.input_file_label_1 = QtWidgets.QLabel(self.inout_frame)
-        self.input_file_label_1.setGeometry(QtCore.QRect(20, 30, 120, 16))
+        self.input_file_label_1.setGeometry(QtCore.QRect(20, 30, 130, 16))
         self.input_file_label_1.setFont(label_font)
         self.input_file_label_1.setObjectName("input_file_label_1")
         self.input_file_label_1.setStyleSheet("border: none;")
@@ -290,61 +320,53 @@ class Ui_MainWindow(object):
         
         # Settings frame - increased height to fit all elements
         self.settings_frame = QtWidgets.QFrame(self.centralwidget)
-        self.settings_frame.setGeometry(QtCore.QRect(20, 350, 700, 150))
+        self.settings_frame.setGeometry(QtCore.QRect(20, 350, 700, 90))
         self.settings_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.settings_frame.setFrameShadow(QtWidgets.QFrame.Raised)
         self.settings_frame.setObjectName("settings_frame")
         
-        radio_font = QtGui.QFont()
-        radio_font.setFamily("Segoe UI")
-        radio_font.setPointSize(10)
-        
-        self.using_simple_file_radio = QtWidgets.QRadioButton(self.settings_frame)
-        self.using_simple_file_radio.setGeometry(QtCore.QRect(80, 30, 150, 20))
-        self.using_simple_file_radio.setFont(radio_font)
-        self.using_simple_file_radio.setObjectName("using_simple_file_radio")
-        
-        self.using_map_file_radio = QtWidgets.QRadioButton(self.settings_frame)
-        self.using_map_file_radio.setGeometry(QtCore.QRect(80, 70, 150, 20))
-        self.using_map_file_radio.setFont(radio_font)
-        self.using_map_file_radio.setObjectName("using_map_file_radio")
-        
         self.folder_column_entry = QtWidgets.QPlainTextEdit(self.settings_frame)
-        self.folder_column_entry.setGeometry(QtCore.QRect(550, 20, 80, 30))
+        self.folder_column_entry.setGeometry(QtCore.QRect(70, 40, 50, 30))
         self.folder_column_entry.setStyleSheet(entry_style)
         self.folder_column_entry.setObjectName("folder_column_entry")
         
         self.item_column_entry = QtWidgets.QPlainTextEdit(self.settings_frame)
-        self.item_column_entry.setGeometry(QtCore.QRect(550, 60, 80, 30))
+        self.item_column_entry.setGeometry(QtCore.QRect(320, 40, 50, 30))
         self.item_column_entry.setStyleSheet(entry_style)
         self.item_column_entry.setObjectName("item_column_entry")
         
         self.rev_entry = QtWidgets.QPlainTextEdit(self.settings_frame)
-        self.rev_entry.setGeometry(QtCore.QRect(550, 100, 80, 30))
+        self.rev_entry.setGeometry(QtCore.QRect(570, 40, 50, 30))
         self.rev_entry.setStyleSheet(entry_style)
         self.rev_entry.setObjectName("rev_entry")
-        
+
+        textOption = QtGui.QTextOption()
+        textOption.setAlignment(QtCore.Qt.AlignCenter)
+        self.folder_column_entry.document().setDefaultTextOption(textOption)
+        self.item_column_entry.document().setDefaultTextOption(textOption)
+        self.rev_entry.document().setDefaultTextOption(textOption)    
+
         self.folder_column_label = QtWidgets.QLabel(self.settings_frame)
-        self.folder_column_label.setGeometry(QtCore.QRect(430, 25, 120, 20))
+        self.folder_column_label.setGeometry(QtCore.QRect(50, 10, 100, 30))
         self.folder_column_label.setFont(label_font)
         self.folder_column_label.setObjectName("folder_column_label")
         self.folder_column_label.setStyleSheet("border: none;")
         
         self.item_column_label = QtWidgets.QLabel(self.settings_frame)
-        self.item_column_label.setGeometry(QtCore.QRect(430, 65, 120, 20))
+        self.item_column_label.setGeometry(QtCore.QRect(300, 10, 100, 30))
         self.item_column_label.setFont(label_font)
         self.item_column_label.setObjectName("item_column_label")
         self.item_column_label.setStyleSheet("border: none;")
         
         self.revision_column_label = QtWidgets.QLabel(self.settings_frame)
-        self.revision_column_label.setGeometry(QtCore.QRect(430, 105, 120, 20))
+        self.revision_column_label.setGeometry(QtCore.QRect(550, 10, 100, 30))
         self.revision_column_label.setFont(label_font)
         self.revision_column_label.setObjectName("revision_column_label")
         self.revision_column_label.setStyleSheet("border: none;")
         
         # File type frame - moved down to accommodate larger settings frame
         self.file_type_frame = QtWidgets.QFrame(self.centralwidget)
-        self.file_type_frame.setGeometry(QtCore.QRect(20, 520, 700, 60))
+        self.file_type_frame.setGeometry(QtCore.QRect(20, 460, 700, 60))
         self.file_type_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.file_type_frame.setFrameShadow(QtWidgets.QFrame.Raised)
         self.file_type_frame.setObjectName("file_type_frame")
@@ -370,7 +392,7 @@ class Ui_MainWindow(object):
         
         # Process frame - moved down
         self.process_frame = QtWidgets.QFrame(self.centralwidget)
-        self.process_frame.setGeometry(QtCore.QRect(20, 600, 700, 60))
+        self.process_frame.setGeometry(QtCore.QRect(20, 540, 700, 60))
         self.process_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.process_frame.setFrameShadow(QtWidgets.QFrame.Raised)
         self.process_frame.setObjectName("process_frame")
@@ -389,7 +411,7 @@ class Ui_MainWindow(object):
         
         # Button frame - moved down
         self.button_frame = QtWidgets.QFrame(self.centralwidget)
-        self.button_frame.setGeometry(QtCore.QRect(170, 680, 400, 60))
+        self.button_frame.setGeometry(QtCore.QRect(170, 620, 400, 60))
         self.button_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.button_frame.setFrameShadow(QtWidgets.QFrame.Raised)
         self.button_frame.setObjectName("button_frame")
@@ -417,6 +439,25 @@ class Ui_MainWindow(object):
         # Set initial theme
         self.current_theme = "dark"
         self.set_theme("dark")
+        # Set default file mode to Simple File (unchecked)
+        self.file_mode_toggle.setChecked(False)
+        self.file_mode_toggle.toggled.emit(False)
+        self.input_file_label_2.hide()
+        self.input_file_entry_2.hide()
+        self.input_file_button_2.hide()
+        self.settings_frame.show()
+        self.input_file_label_1.setText("Simple File:")
+        
+        self.settings_frame.move(20, 300)
+        self.file_type_frame.move(20, 415)
+        self.process_frame.move(20, 500)
+        self.button_frame.move(170, 585)
+
+        self.output_label.move(20, 80)
+        self.output_folder_entry.move(160, 70)
+        self.output_button.move(620, 70)
+
+        self.inout_frame.setFixedHeight(125)
 
     def set_theme(self, theme):
         """Set light or dark theme"""
@@ -498,6 +539,8 @@ class Ui_MainWindow(object):
             """
             
             self.theme_toggle.setText("Light Mode")
+            self.file_mode_toggle.setText("Sipmle File")
+            self.file_mode_toggle._external_label.setStyleSheet("color: #fff; background: transparent;")
             
         else:
             # Light theme
@@ -506,7 +549,7 @@ class Ui_MainWindow(object):
             light_palette.setColor(QtGui.QPalette.WindowText, QtCore.Qt.black)
             light_palette.setColor(QtGui.QPalette.Base, QtGui.QColor(255, 255, 255))
             light_palette.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(240, 240, 240))
-            light_palette.setColor(QtGui.QPalette.ToolTipBase, QtGui.QColor(255, 255, 220))
+            light_palette.setColor(QtGui.QPalette.ToolTipBase, QtGui.QColor(255, 255, 220));
             light_palette.setColor(QtGui.QPalette.ToolTipText, QtCore.Qt.black)
             light_palette.setColor(QtGui.QPalette.Text, QtCore.Qt.black)
             light_palette.setColor(QtGui.QPalette.Button, QtGui.QColor(240, 240, 240))
@@ -575,6 +618,8 @@ class Ui_MainWindow(object):
             """
             
             self.theme_toggle.setText("Dark Mode")
+            self.file_mode_toggle.setText("MAP File")
+            self.file_mode_toggle._external_label.setStyleSheet("color: #222; background: transparent;")
         
         # Apply styles
         self.inout_frame.setStyleSheet(frame_style)
@@ -596,26 +641,6 @@ class Ui_MainWindow(object):
         self.item_column_entry.setStyleSheet(entry_style)
         self.rev_entry.setStyleSheet(entry_style)
         
-        # Radio buttons and checkboxes
-        radio_style = f"""
-            QRadioButton {{
-                color: {'#ffffff' if theme == 'dark' else '#000000'};
-            }}
-            QRadioButton::indicator {{
-                width: 14px;
-                height: 14px;
-            }}
-            QRadioButton::indicator::unchecked {{
-                border: 2px solid {'#aaaaaa' if theme == 'dark' else '#666666'};
-                border-radius: 7px;
-            }}
-            QRadioButton::indicator::checked {{
-                border: 2px solid {"#aaaaaa" if theme == 'dark' else '#666666'};
-                border-radius: 7px;
-                background-color: {"#0078d7" if theme == 'dark' else '#0078d7'};
-            }}
-        """
-        
         checkbox_style = f"""
             QCheckBox {{
                 color: {'#ffffff' if theme == 'dark' else '#000000'};
@@ -633,33 +658,29 @@ class Ui_MainWindow(object):
                 background: {"#0078d7" if theme == 'dark' else '#0078d7'};
             }}
         """
-        
-        self.using_simple_file_radio.setStyleSheet(radio_style)
-        self.using_map_file_radio.setStyleSheet(radio_style)
+
         self.datanote.setStyleSheet(checkbox_style)
         self.rev_drawing.setStyleSheet(checkbox_style)
         self.nx_pdf.setStyleSheet(checkbox_style)
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "Teamcenter Downloader"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "Teamcenter Downloader Tool"))
         self.label.setText(_translate("MainWindow", "<html><head/><body>\n"
 "<p align=\"center\"><span style=\" font-size:18pt; font-weight:600;\">Teamcenter Downloader Tool</span></p>\n"
 f"<p align=\"center\">• Log in to Teamcenter before running</span></p>\n"
 f"<p align=\"center\">• Switch your keyboard to English mode</span></p>\n"
 f"<p align=\"center\">• Do not operate while the tool is running</span></p>\n"
 "</body></html>"))
-        self.input_file_label_1.setText(_translate("MainWindow", "Input File:"))
+        self.input_file_label_1.setText(_translate("MainWindow", "Simple File:"))
         self.input_file_label_2.setText(_translate("MainWindow", "Connector IF file:"))
         self.output_label.setText(_translate("MainWindow", "Output Folder:"))
         self.input_file_button_1.setText(_translate("MainWindow", "Browse"))
         self.input_file_button_2.setText(_translate("MainWindow", "Browse"))
         self.output_button.setText(_translate("MainWindow", "Browse"))
-        self.using_simple_file_radio.setText(_translate("MainWindow", "Using Simple File"))
-        self.using_map_file_radio.setText(_translate("MainWindow", "Using MAP File"))
-        self.folder_column_label.setText(_translate("MainWindow", "Folder Column:"))
-        self.item_column_label.setText(_translate("MainWindow", "Item ID Column:"))
-        self.revision_column_label.setText(_translate("MainWindow", "Revision Column:"))
+        self.folder_column_label.setText(_translate("MainWindow", "Folder Column"))
+        self.item_column_label.setText(_translate("MainWindow", "Item ID Column"))
+        self.revision_column_label.setText(_translate("MainWindow", "Revision Column"))
         self.datanote.setText(_translate("MainWindow", "Data Note"))
         self.rev_drawing.setText(_translate("MainWindow", "Rev Drawing"))
         self.nx_pdf.setText(_translate("MainWindow", "NX PDF"))
@@ -667,7 +688,6 @@ f"<p align=\"center\">• Do not operate while the tool is running</span></p>\n"
         self.noti_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\" font-size:9pt;\">Status</span></p></body></html>"))
         self.download_button.setText(_translate("MainWindow", "Download"))
         self.stop_button.setText(_translate("MainWindow", "Stop"))
-
 
 class ThemeManager:
     def __init__(self, main_window, ui):
@@ -697,23 +717,72 @@ class ThemeManager:
         # Initially hide the theme toggle
         self.ui.theme_toggle.hide()
         self.ui.theme_toggle._external_label.hide()
+
+        self.ui.file_mode_toggle.hide()
+        self.ui.file_mode_toggle._external_label.hide()
         
         # Connect signals
         self.ui.theme_toggle.toggled.connect(self.on_toggle_changed)
-        
+        self.ui.file_mode_toggle.toggled.connect(self.toggle_file_mode)
+    def __del__(self):
+        if hasattr(self, '_external_label') and self._external_label:
+            self._external_label.deleteLater()
+
     def toggle_theme_switch(self):
         self._toggle_visible = not self._toggle_visible
         if self._toggle_visible:
             self.ui.theme_toggle.show()
             self.ui.theme_toggle._external_label.show()
+            self.ui.file_mode_toggle.show()
+            self.ui.file_mode_toggle._external_label.show()
         else:
             self.ui.theme_toggle.hide()
             self.ui.theme_toggle._external_label.hide()
+            self.ui.file_mode_toggle.hide()
+            self.ui.file_mode_toggle._external_label.hide()
             
     def on_toggle_changed(self, checked):
         self._theme = "dark" if checked else "light"
         self.update_theme()
         
+    def toggle_file_mode(self, checked):
+        """Chuyển đổi giữa Simple File và MAP File mode"""
+        if checked:  # MAP File mode
+            self.ui.input_file_label_2.show()
+            self.ui.input_file_entry_2.show()
+            self.ui.input_file_button_2.show()
+            self.ui.settings_frame.hide()
+
+            self.ui.file_type_frame.move(20, 350)  # Di chuyển lên vị trí của settings_frame
+            self.ui.process_frame.move(20, 435)    # Di chuyển lên 90px (350 + 90)
+            self.ui.button_frame.move(170, 520)    # Di chuyển lên 60px (440 + 60)
+            
+            self.ui.output_label.move(20, 130)
+            self.ui.output_folder_entry.move(160, 120)
+            self.ui.output_button.move(620, 120)
+
+            self.ui.inout_frame.setFixedHeight(175)
+
+            self.main_window.resize(740, 605)
+
+        else:  # Simple File mode
+            self.ui.input_file_label_2.hide()
+            self.ui.input_file_entry_2.hide()
+            self.ui.input_file_button_2.hide()
+            self.ui.settings_frame.show()
+            # Đưa các frame về vị trí ban đầu
+            self.ui.settings_frame.move(20, 300)
+            self.ui.file_type_frame.move(20, 415)
+            self.ui.process_frame.move(20, 500)
+            self.ui.button_frame.move(170, 585)
+
+            self.ui.output_label.move(20, 80)
+            self.ui.output_folder_entry.move(160, 70)
+            self.ui.output_button.move(620, 70)
+
+            self.ui.inout_frame.setFixedHeight(125)
+            self.main_window.resize(740, 670)
+
     def update_theme(self):
         if self._theme == "dark":
             self.ui.set_theme("dark")
@@ -737,6 +806,8 @@ class ThemeManager:
         if not toggle_rect.contains(pos) and not gear_rect.contains(pos) and self._toggle_visible:
             self.ui.theme_toggle.hide()
             self.ui.theme_toggle._external_label.hide()
+            self.ui.file_mode_toggle.hide()
+            self.ui.file_mode_toggle._external_label.hide()
             self._toggle_visible = False
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -750,12 +821,11 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Install event filter for mouse tracking
         self.installEventFilter(self)
-        
+
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.MouseButtonPress:
             self.theme_manager.handle_click(event.pos())
         return super().eventFilter(obj, event)
-
 
 if __name__ == "__main__":
     import sys
@@ -774,4 +844,4 @@ if __name__ == "__main__":
     
     window = MainWindow()
     window.show()
-    sys.exit(app.exec_())                                                                                                                                                                        
+    sys.exit(app.exec_())
