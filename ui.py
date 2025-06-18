@@ -15,6 +15,7 @@ class StyleManager:
                 background-color: {'#2a82da' if theme == 'dark' else '#2a82da'};
                 border-radius: 8px;
                 color: white;
+                font-family: 'Segoe UI';
             }}
             QPushButton:hover {{
                 background-color: {'#3a92ea' if theme == 'dark' else '#3a92ea'};
@@ -60,7 +61,7 @@ class StyleManager:
     @staticmethod
     def get_entry_style(theme):
         return f"""
-            QTextEdit, QPlainTextEdit {{
+            QLineEdit, QPlainTextEdit {{
                 background-color: {'#353535' if theme == 'dark' else '#ffffff'};
                 color: {'#ffffff' if theme == 'dark' else '#000000'};
                 border: 1px solid {'#555555' if theme == 'dark' else '#cccccc'};
@@ -70,7 +71,7 @@ class StyleManager:
                 font-family: 'Segoe UI';
                 selection-background-color: #2a82da;
             }}
-            QTextEdit:hover, QPlainTextEdit:hover {{
+            QLineEdit:hover, QPlainTextEdit:hover {{
                 border: 1px solid {'#6a6a6a' if theme == 'dark' else '#aaaaaa'};
             }}
         """
@@ -108,7 +109,7 @@ class GearButton(QtWidgets.QPushButton):
     def _setup_icon(self, size):
         """Cấu hình icon cho nút"""
         try:
-            icon = QtGui.QIcon("cogwheel.png")
+            icon = QtGui.QIcon("images/icons/cogwheel.png")
             if icon.isNull():
                 icon = QtGui.QIcon.fromTheme("preferences-system")
         except Exception:
@@ -404,17 +405,17 @@ class Ui_MainWindow:
         """Tạo các ô nhập liệu"""
         entry_style = StyleManager.get_entry_style("light")
         
-        self.output_folder_entry = QtWidgets.QTextEdit(self.inout_frame)
+        self.output_folder_entry = QtWidgets.QLineEdit(self.inout_frame)
         self.output_folder_entry.setGeometry(QtCore.QRect(140, 120, 470, 35))
         self.output_folder_entry.setStyleSheet(entry_style)
         self.output_folder_entry.setObjectName("output_folder_entry")
         
-        self.input_file_entry_2 = QtWidgets.QTextEdit(self.inout_frame)
+        self.input_file_entry_2 = QtWidgets.QLineEdit(self.inout_frame)
         self.input_file_entry_2.setGeometry(QtCore.QRect(140, 70, 470, 35))
         self.input_file_entry_2.setStyleSheet(entry_style)
         self.input_file_entry_2.setObjectName("input_file_entry_2")
         
-        self.input_file_entry_1 = QtWidgets.QTextEdit(self.inout_frame)
+        self.input_file_entry_1 = QtWidgets.QLineEdit(self.inout_frame)
         self.input_file_entry_1.setGeometry(QtCore.QRect(140, 20, 470, 35))
         self.input_file_entry_1.setStyleSheet(entry_style)
         self.input_file_entry_1.setObjectName("input_file_entry_1")
@@ -496,27 +497,25 @@ class Ui_MainWindow:
         """Tạo các ô nhập liệu cho settings"""
         entry_style = StyleManager.get_entry_style("light")
         
-        self.folder_column_entry = QtWidgets.QTextEdit(self.settings_frame)
+        self.folder_column_entry = QtWidgets.QLineEdit(self.settings_frame)
         self.folder_column_entry.setGeometry(QtCore.QRect(70, 40, 55, 35))
         self.folder_column_entry.setStyleSheet(entry_style)
         self.folder_column_entry.setObjectName("folder_column_entry")
         
-        self.item_column_entry = QtWidgets.QTextEdit(self.settings_frame)
+        self.item_column_entry = QtWidgets.QLineEdit(self.settings_frame)
         self.item_column_entry.setGeometry(QtCore.QRect(320, 40, 55, 35))
         self.item_column_entry.setStyleSheet(entry_style)
         self.item_column_entry.setObjectName("item_column_entry")
         
-        self.rev_entry = QtWidgets.QTextEdit(self.settings_frame)
-        self.rev_entry.setGeometry(QtCore.QRect(570, 40, 55, 35))
-        self.rev_entry.setStyleSheet(entry_style)
-        self.rev_entry.setObjectName("rev_entry")
+        self.rev_column_entry = QtWidgets.QLineEdit(self.settings_frame)
+        self.rev_column_entry.setGeometry(QtCore.QRect(570, 40, 55, 35))
+        self.rev_column_entry.setStyleSheet(entry_style)
+        self.rev_column_entry.setObjectName("rev_column_entry")
 
         # Căn giữa text
-        textOption = QtGui.QTextOption()
-        textOption.setAlignment(QtCore.Qt.AlignCenter)
-        self.folder_column_entry.document().setDefaultTextOption(textOption)
-        self.item_column_entry.document().setDefaultTextOption(textOption)
-        self.rev_entry.document().setDefaultTextOption(textOption)
+        self.folder_column_entry.setAlignment(QtCore.Qt.AlignCenter)
+        self.item_column_entry.setAlignment(QtCore.Qt.AlignCenter)
+        self.rev_column_entry.setAlignment(QtCore.Qt.AlignCenter)
 
     def _create_settings_labels(self):
         """Tạo các nhãn cho settings"""
@@ -720,7 +719,7 @@ class Ui_MainWindow:
         self.input_file_entry_2.setStyleSheet(entry_style)
         self.folder_column_entry.setStyleSheet(entry_style)
         self.item_column_entry.setStyleSheet(entry_style)
-        self.rev_entry.setStyleSheet(entry_style)
+        self.rev_column_entry.setStyleSheet(entry_style)
         
         # Áp dụng style cho các checkbox
         checkbox_style = StyleManager.get_checkbox_style(theme)
