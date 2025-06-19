@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
-
+import resources 
 from PyQt5 import QtCore, QtGui, QtWidgets
 import sys
 import platform
 import winreg
-
+import ctypes
+from ctypes import wintypes
 
 class StyleManager:
     """Quản lý các style cho ứng dụng"""
@@ -109,7 +109,7 @@ class GearButton(QtWidgets.QPushButton):
     def _setup_icon(self, size):
         """Cấu hình icon cho nút"""
         try:
-            icon = QtGui.QIcon("images/icons/cogwheel.png")
+            icon = QtGui.QIcon(":/icons/images/icons/cogwheel.png")
             if icon.isNull():
                 icon = QtGui.QIcon.fromTheme("preferences-system")
         except Exception:
@@ -580,16 +580,16 @@ class Ui_MainWindow:
         # Tạo các nhãn
         label_font = QtGui.QFont()
         label_font.setFamily("Segoe UI")
-        label_font.setPointSize(10)
+        label_font.setPointSize(12)
         
         self.process_label = QtWidgets.QLabel(self.process_frame)
-        self.process_label.setGeometry(QtCore.QRect(20, 10, 660, 20))
+        self.process_label.setGeometry(QtCore.QRect(20, 2, 660, 30))
         self.process_label.setFont(label_font)
         self.process_label.setObjectName("process_label")
         self.process_label.setStyleSheet("border: none;")
         
         self.noti_label = QtWidgets.QLabel(self.process_frame)
-        self.noti_label.setGeometry(QtCore.QRect(20, 30, 660, 20))
+        self.noti_label.setGeometry(QtCore.QRect(20, 27, 660, 30))
         self.noti_label.setFont(label_font)
         self.noti_label.setObjectName("noti_label")
         self.noti_label.setStyleSheet("border: none;")
@@ -762,11 +762,79 @@ f"<p align=\"center\">• Do not operate while the tool is running</span></p>\n"
         self.datanote.setText(_translate("MainWindow", "Data Note"))
         self.rev_drawing.setText(_translate("MainWindow", "Rev Drawing"))
         self.nx_pdf.setText(_translate("MainWindow", "NX PDF"))
-        self.process_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\" font-size:9pt;\">Ready</span></p></body></html>"))
-        self.noti_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\" font-size:9pt;\">Status</span></p></body></html>"))
+        self.process_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\"\">Ready</span></p></body></html>"))
+        self.noti_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\"\">Status</span></p></body></html>"))
         self.download_button.setText(_translate("MainWindow", "Download"))
         self.stop_button.setText(_translate("MainWindow", "Stop"))
 
+class TitleBarThemeManager:
+    """Quản lý màu sắc thanh tiêu đề trên Windows 10/11"""
+    def __init__(self):
+        self._dwmapi = None
+        self._user32 = None
+        self._set_title_bar_theme_light = None
+        self._set_title_bar_theme_dark = None
+        
+        # Chỉ khởi tạo trên Windows 10/11
+        if platform.system() == "Windows":
+            try:
+                self._dwmapi = ctypes.WinDLL('dwmapi')
+                self._user32 = ctypes.WinDLL('user32')
+                self._setup_dark_mode_functions()
+            except Exception as e:
+                print(f"Không thể khởi tạo Dark Mode: {e}")
+
+    def _setup_dark_mode_functions(self):
+        """Thiết lập các hàm API cần thiết"""
+        if not hasattr(self, '_dwmapi') or not self._dwmapi:
+            return
+            
+        # Kiểm tra version Windows (chỉ hỗ trợ từ Windows 10 build 1809 trở lên)
+        try:
+            from sys import getwindowsversion
+            win_version = getwindowsversion()
+            if win_version.major < 10 or (win_version.major == 10 and win_version.build < 17763):
+                return
+        except:
+            return
+            
+        try:
+            self._dwmapi.DwmSetWindowAttribute.argtypes = [
+                wintypes.HWND,
+                ctypes.c_int,
+                ctypes.c_void_p,
+                ctypes.c_int
+            ]
+            
+            # Hằng số cho Dark Mode
+            self.DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            self._set_title_bar_theme_light = lambda hwnd: self._set_dark_mode(hwnd, False)
+            self._set_title_bar_theme_dark = lambda hwnd: self._set_dark_mode(hwnd, True)
+        except Exception as e:
+            print(f"Không thể thiết lập Dark Mode functions: {e}")
+
+    def _set_dark_mode(self, hwnd, dark):
+        """Thiết lập chế độ tối/sáng cho thanh tiêu đề"""
+        if not hasattr(self._dwmapi, 'DwmSetWindowAttribute'):
+            return
+        
+        value = ctypes.c_int(dark)
+        self._dwmapi.DwmSetWindowAttribute(
+            hwnd,
+            self.DWMWA_USE_IMMERSIVE_DARK_MODE,
+            ctypes.byref(value),
+            ctypes.sizeof(value)
+        )
+
+    def set_title_bar_theme(self, hwnd, theme):
+        """Thiết lập theme cho thanh tiêu đề"""
+        if not hwnd:
+            return
+            
+        if theme == "dark" and self._set_title_bar_theme_dark:
+            self._set_title_bar_theme_dark(hwnd)
+        elif theme == "light" and self._set_title_bar_theme_light:
+            self._set_title_bar_theme_light(hwnd)
 
 class ThemeManager:
     """Quản lý theme và các tùy chọn giao diện"""
@@ -775,11 +843,15 @@ class ThemeManager:
         self.ui = ui
         self._theme = self._detect_system_theme()
         self._toggle_visible = False
+        self.title_bar_manager = TitleBarThemeManager()  # Thêm quản lý thanh tiêu đề
         
         # Thêm nút gear và cấu hình ban đầu
         self._setup_gear_button()
         self._initialize_theme_state()
         self._connect_signals()
+        
+        # Áp dụng theme ban đầu cho thanh tiêu đề
+        self._apply_title_bar_theme()
 
     def _detect_system_theme(self):
         """Phát hiện theme hệ thống"""
@@ -883,7 +955,26 @@ class ThemeManager:
     def update_theme(self):
         """Cập nhật theme cho ứng dụng"""
         self.ui.set_theme(self._theme)
+        self._apply_title_bar_theme()
+    
+    def _apply_title_bar_theme(self):
+        """Áp dụng theme cho thanh tiêu đề"""
+        if not hasattr(self, 'title_bar_manager') or not self.title_bar_manager:
+            return
             
+        if platform.system() != "Windows":
+            return
+            
+        try:
+            # Lấy HWND của cửa sổ
+            hwnd = self.main_window.winId()
+            if hwnd:
+                # Chuyển đổi QWindow thành HWND
+                hwnd = int(hwnd)
+                self.title_bar_manager.set_title_bar_theme(hwnd, self._theme)
+        except Exception as e:
+            print(f"Không thể áp dụng theme cho thanh tiêu đề: {e}")
+
     def handle_click(self, pos):
         """Xử lý sự kiện click chuột để ẩn các toggle"""
         if not self._toggle_visible:
@@ -910,12 +1001,44 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         
+        # Thiết lập icon cho ứng dụng
+        self._setup_app_icon()
+        
         # Tạo theme manager
         self.theme_manager = ThemeManager(self, self.ui)
         
         # Cài đặt event filter
         self.installEventFilter(self)
+        
+    def _setup_app_icon(self):
+        """Thiết lập icon cho ứng dụng"""
+        try:
+            # Thử load icon từ file
+            app_icon = QtGui.QIcon(":/icons/images/icons/download.png")
+            if not app_icon.isNull():
+                self.setWindowIcon(app_icon)
+            else:
+                # Fallback: sử dụng icon mặc định từ hệ thống
+                fallback_icon = QtGui.QIcon.fromTheme("applications-office")
+                self.setWindowIcon(fallback_icon)
+        except Exception as e:
+            print(f"Không thể tải icon ứng dụng: {e}")
+            # Sử dụng icon mặc định nếu có lỗi
+            fallback_icon = QtGui.QIcon.fromTheme("applications-office")
+            if not fallback_icon.isNull():
+                self.setWindowIcon(fallback_icon)
 
+    def showEvent(self, event):
+        """Xử lý sự kiện hiển thị cửa sổ"""
+        super().showEvent(event)
+        # Đợi một chút để cửa sổ hiển thị hoàn toàn trước khi áp dụng theme
+        QtCore.QTimer.singleShot(100, self._apply_title_bar_theme)
+        
+    def _apply_title_bar_theme(self):
+        """Áp dụng theme cho thanh tiêu đề"""
+        if hasattr(self, 'theme_manager') and hasattr(self.theme_manager, '_apply_title_bar_theme'):
+            self.theme_manager._apply_title_bar_theme()
+    
     def eventFilter(self, obj, event):
         """Lọc các sự kiện"""
         if event.type() == QtCore.QEvent.MouseButtonPress:
@@ -932,7 +1055,7 @@ if __name__ == "__main__":
     
     font = QtGui.QFont()
     font.setFamily("Segoe UI")
-    font.setPointSize(9)
+    font.setPointSize(10)
     app.setFont(font)
     
     # Tạo và hiển thị cửa sổ chính
