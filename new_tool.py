@@ -43,8 +43,8 @@ class Logger:
         pass  # Needed for Python 3 compatibility
 
 class TeamcenterDownloader(QtCore.QObject):
-    update_status = pyqtSignal(str, str)  # process_label, noti_label
-    enable_download_button = pyqtSignal(bool)
+    update_status = pyqtSignal(str, str, str, str)  # process_label, noti_label, process_text_font_weight, noti_text_font_weight
+    enable_button = pyqtSignal(bool)
     show_message = pyqtSignal(str, str, str)  # title, text, type
 
     def __init__(self, main_window):
@@ -59,7 +59,7 @@ class TeamcenterDownloader(QtCore.QObject):
                 self.data = json.load(f)
 
         self.update_status.connect(self._update_status)
-        self.enable_download_button.connect(self.ui.download_button.setEnabled)
+        self.enable_button.connect(self._enable_button)
         self.show_message.connect(self._show_message)
 
         self.load_data()
@@ -68,12 +68,18 @@ class TeamcenterDownloader(QtCore.QObject):
         # Set window close handler for PyQt
         self.main_window.closeEvent = self._on_close_event
 
-    def _update_status(self, process_text, noti_text):
+    def _update_status(self, process_text, noti_text, process_text_font_weight="normal", noti_text_font_weight="normal"):
         if process_text:
-            self.ui.process_label.setText(process_text)
+            self.ui.process_label.setText(f"<html><body><p align='center' style=' font-weight: {process_text_font_weight};'>{process_text}</p></body></html>")
         
         if noti_text:
-            self.ui.noti_label.setText(noti_text)
+            self.ui.noti_label.setText(f"<html><body><p align='center' style=' font-weight: {noti_text_font_weight};'>{noti_text}</p></body></html>")
+
+    def _enable_button(self, status_bool):
+        self.ui.download_button.setEnabled(status_bool)
+        self.ui.input_file_button_1.setEnabled(status_bool)
+        self.ui.input_file_button_2.setEnabled(status_bool)
+        self.ui.output_button.setEnabled(status_bool)
 
     def _show_message(self, title, text, type_):
         msg_box = QMessageBox(self.main_window)
@@ -83,7 +89,7 @@ class TeamcenterDownloader(QtCore.QObject):
             msg_box.setIcon(QMessageBox.Information)
         msg_box.setWindowTitle(title)
         msg_box.setText(text)
-        msg_box.setStyleSheet("QLabel{-family:'Segoe UI';} QPushButton{-family:'Segoe UI';}")
+        msg_box.setStyleSheet("QLabel{font-family:'Segoe UI'; color: black;} QPushButton{font-family:'Segoe UI'; color: black;}")
         msg_box.exec_()
 
     def connect_ui(self):
@@ -147,10 +153,7 @@ class TeamcenterDownloader(QtCore.QObject):
         while True:
             if self.stop_flag: return
             if time.time() - time_start >= 5*60:
-                self.update_status.emit(
-                    "",
-                    "<html><head/><body><p align='center' style='Stopped!</p></body></html>"
-                )
+                self.update_status.emit("", "Out of waiting time" "normal", "normal")
                 print("Out of waiting time")
                 sys.exit()
             if teamcenter_window.child_window(control_type="Text", title="No operations to display at this time.").exists():
@@ -607,12 +610,7 @@ class TeamcenterDownloader(QtCore.QObject):
                     keyboard.send('Enter')
                     keyboard.send('d')
                     
-                    if self.stop_flag: 
-                        self.update_status.emit(
-                            "",
-                            "<html><head/><body><p align='center' style='Stopped!</p></body></html>"
-                        )
-                        return
+                    if self.stop_flag: return
                     
                     self.export_window.wait('ready', timeout=5)
                     if self.first_turn:
@@ -637,12 +635,7 @@ class TeamcenterDownloader(QtCore.QObject):
                         print(f"Error when sanving file '{os.path.basename(filename)}' to '{each_folder}'.")
                         return False
                     
-                    if self.stop_flag: 
-                        self.update_status.emit(
-                            "",
-                            "<html><head/><body><p align='center' style='Stopped!</p></body></html>"
-                        )
-                        return
+                    if self.stop_flag: return
                     
                 except Exception as e:
                     print(f"Have error with NX: {e}")
@@ -672,12 +665,8 @@ class TeamcenterDownloader(QtCore.QObject):
                     except Exception as e:
                         print(f"Error processing TreeItem {idx}: {e}")
                         break
-                if self.stop_flag:
-                    self.update_status.emit(
-                        "",
-                        "<html><head/><body><p align='center' style='Stopped!</p></body></html>"
-                    )
-                    return
+                if self.stop_flag: return
+
                 # Find all occurrences of "CAD_NX.png" on screen with error handling
                 found_images = []
                 num = 1
@@ -713,12 +702,7 @@ class TeamcenterDownloader(QtCore.QObject):
                         time.sleep(0.1)  # pause between clicks
                         kb.send_keys('{ENTER}')
                         self.total_open_NX += 1
-                        if self.stop_flag: 
-                            self.update_status.emit(
-                                "",
-                                "<html><head/><body><p align='center' style='Stopped!</p></body></html>"
-                            )
-                            return      
+                        if self.stop_flag: return     
                         if self.confirm_window_openned(teamcenter_app, teamcenter_window):
                             if self.app_nx == None:
                                 self.app_nx = Application(backend="uia").connect(title_re=".*NX.*", timeout=900)
@@ -729,12 +713,7 @@ class TeamcenterDownloader(QtCore.QObject):
                             self.window_nx.wait('ready', timeout=999)
                             self.window_nx.set_focus()
                             
-                            if self.stop_flag: 
-                                self.update_status.emit(
-                                    "",
-                                    "<html><head/><body><p align='center' style='Stopped!</p></body></html>"
-                                )
-                                return
+                            if self.stop_flag: return
                             export_status = export_pdf()
                             
                             if export_status: self.download_status = 1
@@ -756,30 +735,10 @@ class TeamcenterDownloader(QtCore.QObject):
         self.waiting_progress(teamcenter_window)
 
     def main(self, teamcenter_app, teamcenter_window, input_file_1, input_file_2, outputfolder, search_type, coliteam, colrevision, colnamefolder):
-        self.total_open_NX = 0
-        self.total_turn = 0
-        self.first_turn = False
-        self.download_status = None  # 0: download error, 1: download success, 2: not found, 3: check again
-        self.name_file_log = "download_status"
-        col_mapping = {
-            "Ref Drawing": "E",
-            "Data Note": "D",
-            "PDF CAD": "F"
-        }
-        status_mapping = {
-            0: "Download Error",
-            1: "Download Success",
-            2: "Not Found",
-            3: "Check Again"
-        }
-
         def download_type(type):
             i=0
             self.first_turn = True
-            self.update_status.emit(
-                    f"<html><body><p align='center' style=' font-weight: bold;'>Progress download {type}: {i}/{len(data)} (0%)</p></body></html>",
-                    ""
-                )
+    
             for idx, (x, y, z, a, b, c) in enumerate(data):
                 if self.stop_flag: break
                 print(f"--------------------------------------------\n {y} {z}")
@@ -790,10 +749,7 @@ class TeamcenterDownloader(QtCore.QObject):
                 i += 1
                 self.total_turn += 1
                 progress_percentage = (i) / len(data) * 100
-                self.update_status.emit(
-                    f"<html><body><p align='center' style=' font-weight: bold;'>Progress download {type}: {i}/{len(data)} ({progress_percentage:.1f}%)</p></body></html>",
-                    ""
-                )
+                self.update_status.emit(f"Progress download {type}: {i}/{len(data)} ({progress_percentage:.1f}%)", "", "bold", "normal")
                 if y == "NONE" or not z[-1].isdigit():
                     print("Skip None")
                     continue
@@ -856,17 +812,41 @@ class TeamcenterDownloader(QtCore.QObject):
             except Exception as e:
                 print(f"Error writing to cell in file {file_path} at row {row} and column {col}: {e}")
                 return
-        #_________________________________________________________
-        # Close Excel window named "download_status.xlsx" if it is open
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            try:
-                if proc.info['name'] == 'EXCEL.EXE':
-                    cmdline = ' '.join(proc.info.get('cmdline', []))
-                    if f'{self.name_file_log}.xlsx' in cmdline:
-                        os.kill(proc.info['pid'], signal.SIGTERM)
-            except Exception:
-                pass
 
+        # Close Excel window named "download_status.xlsx" if it is open
+        def close_excel(name):
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['name'] == 'EXCEL.EXE':
+                        cmdline_list = proc.info.get('cmdline')
+                        if cmdline_list is None:
+                            cmdline_list = []
+                        cmdline = ' '.join(cmdline_list)
+                        if f'{name}.xlsx' in cmdline:
+                            os.kill(proc.info['pid'], signal.SIGTERM)
+                except Exception:
+                    pass
+
+        #-------------------------------------------------------------------------------
+        self.total_open_NX = 0
+        self.total_turn = 0
+        self.first_turn = False
+        self.download_status = None  # 0: download error, 1: download success, 2: not found, 3: check again
+        self.name_file_log = "download_status"
+        col_mapping = {
+            "Ref Drawing": "E",
+            "Data Note": "D",
+            "PDF CAD": "F"
+        }
+        status_mapping = {
+            0: "Download Error",
+            1: "Download Success",
+            2: "Not Found",
+            3: "Check Again"
+        }
+
+        close_excel(self.name_file_log)
+        
         if not self.ui.file_mode_toggle.isChecked():
             data = self.get_data_from_simple_file(input_file_1, colnamefolder, coliteam, colrevision)
         else:
@@ -887,21 +867,11 @@ class TeamcenterDownloader(QtCore.QObject):
             self.preparing(teamcenter_window,op)
             download_type(label)
 
-            if self.stop_flag:
-                self.update_status.emit(
-                    "",
-                    "<html><head/><body><p align='center' style='Stopped!</p></body></html>"
-                )
-            else:
-                self.update_status.emit(
-                    f"<html><body><p align='center' style=''>Download {label} has finished!</p></body></html>",
-                    ""
-                )
-        self.enable_download_button.emit(True)
-        self.update_status.emit(
-            "",
-            "<html><head/><body><p align='center' style=''>Done</p></body></html>"
-        )
+            if self.stop_flag: return
+            else: self.update_status.emit(f"Download {label} has finished!", "", "bold", "normal")
+
+        self.enable_button.emit(True)
+        self.update_status.emit("", "Done", "normal", "normal")
 
         self.end_time = datetime.now().replace(microsecond=0)
         total_time = self.end_time - self.start_time
@@ -925,23 +895,21 @@ class TeamcenterDownloader(QtCore.QObject):
                 if window_teamcenter.exists():
                     break
             except:
-                self.update_status.emit(
-                    "",
-                    "<html><head/><body><p align='center' style=''>Please Login Teamcenter!</p></body></html>"
-                )
+                
                 self.show_message.emit("Error", "Please Login Teamcenter!", "error")
-                self.enable_download_button.emit(True)
-                return
+                self.enable_button.emit(True)
+                return "not_login"
 
         window_teamcenter.set_focus()
         window_teamcenter.maximize()
         
         self.main(app_teamcenter, window_teamcenter, input_file_1, input_file_2, outputfolder, operation_type, coliteam, colrevision, colnamefolder)
+        if self.stop_flag: return "stop"
 
     def download(self):
         self.start_time = datetime.now().replace(microsecond=0)
         
-        self.enable_download_button.emit(False)
+        self.enable_button.emit(False)
         input_file_1 = self.ui.input_file_entry_1.text()
         input_file_2 = self.ui.input_file_entry_2.text()
         output_folder = self.ui.output_folder_entry.text()
@@ -957,23 +925,23 @@ class TeamcenterDownloader(QtCore.QObject):
             return re.match("^[A-Za-z]+$", value) is not None
 
         if not input_file_1 and not input_var or not input_file_2 and input_var or not output_folder:
-            self.enable_download_button.emit(True)
+            self.enable_button.emit(True)
             self.show_message.emit("Error", "Please select all required files and output folder.", "error")
             return
 
         if not (is_alpha(coliteam) and is_alpha(colrevision) and is_alpha(colnamefolder)) and not input_var:
-            self.enable_download_button.emit(True)
+            self.enable_button.emit(True)
             self.show_message.emit("Error", "Please enter alphabetic characters for the columns.", "error")
             return
         # Check if input files exist
         if not input_var:
             if not os.path.isfile(input_file_1):
-                self.enable_download_button.emit(True)
+                self.enable_button.emit(True)
                 self.show_message.emit("Error", "Input file does not exist.", "error")
                 return
         else:
             if not os.path.isfile(input_file_1) or not os.path.isfile(input_file_2):
-                self.enable_download_button.emit(True)
+                self.enable_button.emit(True)
                 self.show_message.emit("Error", "One or both MAP/Connector IF files do not exist.", "error")
                 return
         # Build operation types based on checkboxes
@@ -986,43 +954,38 @@ class TeamcenterDownloader(QtCore.QObject):
             op_types.append('nx')
 
         if not op_types:
-            self.enable_download_button.emit(True)
+            self.enable_button.emit(True)
             self.show_message.emit("Error", "Please select file type to download.", "error")
             return
         
-        self.update_status.emit(
-            "<html><head/><body><p align='center'><span style='font-size:10pt;'>Processing...</span></p></body></html>",
-            "<html><head/><body><p align='center'><span style='font-size:10pt;'>Running...</span></p></body></html>"
-        )
+        self.update_status.emit("Processing...", "Running...", "bold", "normal")
         self.stop_flag = False
         
         def thread_func():
             try:
-                self.main_function(input_file_1, input_file_2, output_folder, coliteam, colrevision, colnamefolder, op_types)
-                self.update_status.emit(
-                    "<html><head/><body><p align=\"center\"><span style=\" font-size:10pt;\">Done</span></p></body></html>",
-                    "<html><head/><body><p align=\"center\"><span style=\" font-size:10pt;\">Completed</span></p></body></html>"
-                )
-                self.show_message.emit("Done", "Download completed!", "info")
+                running_result = self.main_function(input_file_1, input_file_2, output_folder, coliteam, colrevision, colnamefolder, op_types)
+                if running_result == "not_login":
+                    self.update_status.emit("Error", "Please Login Teamcenter!", "normal", "bold")
+                elif running_result == "stop":
+                    self.update_status.emit("Stopped", "Stopped", "bold", "bold")
+                    self.show_message.emit("Notification", "This Program has been stopped", "info")
+                else:
+                    self.update_status.emit("Done", "Completed", "bold", "bold")
+                    self.show_message.emit("Done", "Download completed!", "info")
+
             except Exception as e:
-                self.update_status.emit(
-                    "<html><head/><body><p align=\"center\" style=\"font-size:10pt;\"><span style=\"font-size:10pt;\">Error</span></p></body></html>",
-                    "<html><head/><body><p align=\"center\" style=\"font-size:10pt;\"><span style=\"font-size:10pt;\">  </span></p></body></html>"
-                )
+                self.update_status.emit("Error", f"{str(e)}", "bold", "normal")
                 self.show_message.emit("Error", str(e), "error")
             finally:
-                self.enable_download_button.emit(True)
+                self.enable_button.emit(True)
 
         threading.Thread(target=thread_func).start()
     
     def stop_task(self):
         self.stop_flag = True
     
-        self.update_status.emit(
-            "<html><head/><body><p align='center'><span style='font-size:10pt;'>Stopped</span></p></body></html>",
-            "<html><head/><body><p align='center'><span style='font-size:10pt;'>Stopped</span></p></body></html>"
-        )
-        self.enable_download_button.emit(True)
+        self.update_status.emit("Stopped", "Stopped", "bold", "bold")
+        self.enable_button.emit(True)
 
 if __name__ == "__main__":
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
