@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/icons">
+    <file>images/icons/download.png</file>
+    <file>images/icons/cogwheel.png</file>
+  </qresource>
+</RCC>
