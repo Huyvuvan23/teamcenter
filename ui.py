@@ -6,6 +6,9 @@ import winreg
 import ctypes
 from ctypes import wintypes
 
+icon_app_link = ":/icons/images/icons/download.png"
+icon_setting_link = ":/icons/images/icons/cogwheel.png"
+
 class StyleManager:
     """Quản lý các style cho ứng dụng"""
     @staticmethod
@@ -109,7 +112,7 @@ class GearButton(QtWidgets.QPushButton):
     def _setup_icon(self, size):
         """Cấu hình icon cho nút"""
         try:
-            icon = QtGui.QIcon(":/icons/images/icons/cogwheel.png")
+            icon = QtGui.QIcon(icon_setting_link)
             if icon.isNull():
                 icon = QtGui.QIcon.fromTheme("preferences-system")
         except Exception:
@@ -213,7 +216,7 @@ class BaseToggle(QtWidgets.QCheckBox):
         """Cập nhật label bên ngoài"""
         if hasattr(self, '_external_label') and self._external_label:
             self._external_label.setText(self._label_on if checked else self._label_off)
-            # Sử dụng màu sắc từ thuộc tính _text_color thay vì hardcode
+            # Sử dụng màu sắc từ thuộc tính _text_color
             self._external_label.setStyleSheet(
                 f"color: {self._text_color}; background: transparent;"
             )
@@ -595,7 +598,7 @@ class Ui_MainWindow:
         self.noti_label.setStyleSheet("border: none;")
 
     def _setup_button_frame(self):
-        """Cấu hình frame nút hành động"""
+        """Cấu hình frame nút"""
         self.button_frame = QtWidgets.QFrame(self.centralwidget)
         self.button_frame.setGeometry(QtCore.QRect(170, 620, 400, 60))
         self.button_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
@@ -1014,7 +1017,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Thiết lập icon cho ứng dụng"""
         try:
             # Thử load icon từ file
-            app_icon = QtGui.QIcon(":/icons/images/icons/download.png")
+            app_icon = QtGui.QIcon(icon_app_link)
             if not app_icon.isNull():
                 self.setWindowIcon(app_icon)
             else:
