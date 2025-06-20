@@ -51,7 +51,7 @@ class TeamcenterDownloader(QtCore.QObject):
         super().__init__()
         self.main_window = main_window
         self.ui = main_window.ui
-        self.data_file = "form_data.json"
+        self.data_file = "_internal/form_data.json"
         self.data = {}
         self.stop_flag = False
         if os.path.exists(self.data_file):
@@ -671,7 +671,7 @@ class TeamcenterDownloader(QtCore.QObject):
                 found_images = []
                 num = 1
                 while True:
-                    image_file = rf"images\search_by_images\CAD_NX_{num}.png"
+                    image_file = rf"_internal\images\CAD_NX_{num}.png"
                     if not os.path.exists(image_file):
                         break
                     # Try to find all occurrences of the image on screen
@@ -874,12 +874,12 @@ class TeamcenterDownloader(QtCore.QObject):
         self.update_status.emit("", "Done", "normal", "normal")
 
         self.end_time = datetime.now().replace(microsecond=0)
-        total_time = self.end_time - self.start_time
+        self.total_time = self.end_time - self.start_time
 
         print("----------------------------------------------------------")
         print(f"Start at: {self.start_time}")
         print(f"End at: {self.end_time}")
-        print(f"Total Running Time: {total_time}")
+        print(f"Total Running Time: {self.total_time}")
         
     def main_function(self, input_file_1, input_file_2, outputfolder, coliteam, colrevision, colnamefolder, operation_type):
         if self.stop_flag: return
@@ -944,6 +944,12 @@ class TeamcenterDownloader(QtCore.QObject):
                 self.enable_button.emit(True)
                 self.show_message.emit("Error", "One or both MAP/Connector IF files do not exist.", "error")
                 return
+        
+        if not os.path.isdir(output_folder):
+            self.enable_button.emit(True)
+            self.show_message.emit("Error", "Output folder does not exist.", "error")
+            return
+        
         # Build operation types based on checkboxes
         op_types = []
         if datanote:
@@ -958,19 +964,19 @@ class TeamcenterDownloader(QtCore.QObject):
             self.show_message.emit("Error", "Please select file type to download.", "error")
             return
         
-        self.update_status.emit("Processing...", "Running...", "bold", "normal")
+        self.update_status.emit("Preparing...", "Running...", "bold", "normal")
         self.stop_flag = False
         
         def thread_func():
             try:
                 running_result = self.main_function(input_file_1, input_file_2, output_folder, coliteam, colrevision, colnamefolder, op_types)
                 if running_result == "not_login":
-                    self.update_status.emit("Error", "Please Login Teamcenter!", "normal", "bold")
+                    self.update_status.emit("Error", "Please Login Teamcenter!", "bold", "bold")
                 elif running_result == "stop":
                     self.update_status.emit("Stopped", "Stopped", "bold", "bold")
                     self.show_message.emit("Notification", "This Program has been stopped", "info")
                 else:
-                    self.update_status.emit("Done", "Completed", "bold", "bold")
+                    self.update_status.emit(f"Total Running Time: {self.total_time}", "Completed", "bold", "bold")
                     self.show_message.emit("Done", "Download completed!", "info")
 
             except Exception as e:
@@ -989,9 +995,9 @@ class TeamcenterDownloader(QtCore.QObject):
 
 if __name__ == "__main__":
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if not os.path.exists("log"):
-        os.makedirs("log")
-    sys.stdout = Logger(os.path.join("log", f"log_{now}.txt"))
+    if not os.path.exists("_internal/log"):
+        os.makedirs("_internal/log")
+    sys.stdout = Logger(os.path.join("_internal/log", f"log_{now}.txt"))
     sys.stderr = sys.stdout  # Redirect stderr to log as well
     # Hide the console window if running as a script
     try:
