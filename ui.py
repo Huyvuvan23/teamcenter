@@ -1053,13 +1053,13 @@ if __name__ == "__main__":
     """Hàm chính khởi chạy ứng dụng"""
     app = QtWidgets.QApplication(sys.argv)
     
-    # Cấu hình style và font
-    app.setStyle("Fusion")
+    # # Cấu hình style và font
+    # app.setStyle("Fusion")
     
-    font = QtGui.QFont()
-    font.setFamily("Segoe UI")
-    font.setPointSize(10)
-    app.setFont(font)
+    # font = QtGui.QFont()
+    # font.setFamily("Segoe UI")
+    # font.setPointSize(10)
+    # app.setFont(font)
     
     # Tạo và hiển thị cửa sổ chính
     window = MainWindow()
